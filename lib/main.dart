@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart'; // IMPORTANTE: Vincula tu archivo manual de credenciales
 import 'services/database_service.dart';
 import 'screens/workout_screen.dart';
 
@@ -14,15 +15,15 @@ void main() async {
     debugPrint("Error crítico al inicializar Isar: $e");
   }
 
-  // 2. Inicializar Firebase (Opcional - Capturamos el error si no está configurado aún)
-  // El usuario debe correr 'flutterfire configure' para generar las opciones de compilación.
+  // 2. Inicializar Firebase utilizando tus credenciales manuales fijas
   try {
-    // Si tienes firebase_options.dart generado por FlutterFire CLI, descomenta e impórtalo:
-    // await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-    await Firebase.initializeApp();
-    debugPrint("Firebase inicializado correctamente.");
+    // Activamos la inicialización segura usando tu objeto DefaultFirebaseOptions
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    debugPrint("Firebase inicializado correctamente con opciones personalizadas.");
   } catch (e) {
-    debugPrint("Aviso de Firebase: No se pudo conectar a Firebase (Aún no configurado). Se usará modo offline de Isar.");
+    debugPrint("Aviso de Firebase: No se pudo conectar a Firebase ($e). Se usará modo offline de Isar.");
   }
 
   runApp(const WahooBleApp());
@@ -43,8 +44,8 @@ class WahooBleApp extends StatelessWidget {
         colorScheme: const ColorScheme.dark(
           primary: Colors.blueAccent,
           secondary: Colors.redAccent,
-          background: Color(0xFF121212),
-          surface: Color(0xFF1E1E1E),
+          background: const Color(0xFF121212),
+          surface: const Color(0xFF1E1E1E),
         ),
         useMaterial3: true,
       ),

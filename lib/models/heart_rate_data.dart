@@ -1,4 +1,4 @@
-import 'package:isar/isar.dart';
+import 'package:isar_community/isar_community.dart';
 
 part 'heart_rate_data.g.dart';
 

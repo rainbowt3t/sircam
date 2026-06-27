@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "640565292846",
+    "project_id": "proyecto-chepen-heart",
+    "storage_bucket": "proyecto-chepen-heart.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:640565292846:android:43d0f34323324184f2d4bf",
+        "android_client_info": {
+          "package_name": "com.antigravity.wahooble.wahoo_ble_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC-XDzbUixJHAOiMIse8SFaxcTtf3ig0ZI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
