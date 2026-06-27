@@ -1,4 +1,4 @@
-import 'package:isar_community/isar_community.dart';
+import 'package:isar/isar.dart';
 import 'package:path_provider/path_provider.dart';
 import '../models/heart_rate_data.dart';
 
@@ -85,8 +85,9 @@ class DatabaseService {
         int max = 0;
         int sum = 0;
         for (var p in points) {
-          if (p.bpm > max) max = p.bpm;
-          sum += p.bpm;
+          final int bpmVal = p.bpm;
+          if (bpmVal > max) max = bpmVal;
+          sum += bpmVal;
         }
         
         session.maxBpm = max;
