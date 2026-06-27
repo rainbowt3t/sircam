@@ -22,13 +22,8 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      if (_isRegisterMode) {
-        // En producción se crearía la cuenta en Firebase. Aquí simulamos éxito o Auth Anónimo
-        await _firebaseService.signInAnonymously();
-      } else {
-        // Inicio de sesión rápido
-        await _firebaseService.signInAnonymously();
-      }
+      // Intentar autenticación en Firebase
+      await _firebaseService.signInAnonymously();
       
       if (mounted) {
         Navigator.of(context).pushReplacement(
@@ -36,11 +31,9 @@ class _LoginScreenState extends State<LoginScreen> {
         );
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Error: $e"), backgroundColor: Colors.redAccent),
-        );
-      }
+      // Modo local/offline en caso de fallo (Firebase no configurado o sin conexión)
+      debugPrint("Firebase Auth falló, entrando en modo local: $e");
+      _enterLocalMode(e.toString());
     } finally {
       if (mounted) {
         setState(() {
@@ -63,17 +56,34 @@ class _LoginScreenState extends State<LoginScreen> {
         );
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Error: $e"), backgroundColor: Colors.redAccent),
-        );
-      }
+      debugPrint("Firebase Auth anónimo falló, entrando en modo local: $e");
+      _enterLocalMode(e.toString());
     } finally {
       if (mounted) {
         setState(() {
           _isLoading = false;
         });
       }
+    }
+  }
+
+  void _enterLocalMode(String errorMsg) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Acceso Local Activo (Firebase offline/no configurado)"),
+          backgroundColor: Colors.amber[800],
+          duration: const Duration(seconds: 2),
+        ),
+      );
+      
+      Future.delayed(const Duration(seconds: 1), () {
+        if (mounted) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (context) => const WorkoutScreen()),
+          );
+        }
+      });
     }
   }
 
