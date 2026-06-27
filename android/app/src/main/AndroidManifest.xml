@@ -1,5 +1,4 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.antigravity.wahooble.wahoo_ble_app">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
     
     <!-- Permisos de Bluetooth para Android 12+ (API 31+) -->
     <!-- neverForLocation le indica a Google Play que no usamos Bluetooth para espiar ubicación física -->
