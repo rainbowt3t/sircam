@@ -27,10 +27,45 @@ class DatabaseService {
     final dir = await getApplicationDocumentsDirectory();
     
     _isar = await Isar.open(
-      [HeartRateDataPointSchema, TrainingSessionSchema],
+      [HeartRateDataPointSchema, TrainingSessionSchema, CardiacAlertSchema],
       directory: dir.path,
       inspector: true, // Habilita el inspector de base de datos de Isar en desarrollo
     );
+
+    // Insertar alertas de demostración si la colección está vacía (Para simular la UI de SIRCAM)
+    final count = await _isar!.cardiacAlerts.count();
+    if (count == 0) {
+      await _isar!.writeTxn(() async {
+        await _isar!.cardiacAlerts.put(CardiacAlert(
+          title: "Taquicardia detectada",
+          description: "Frecuencia: 112 lpm\nDuración: 2 min",
+          timestamp: DateTime.now().subtract(const Duration(minutes: 10)),
+          heartRate: 112,
+          type: "critica",
+        ));
+        await _isar!.cardiacAlerts.put(CardiacAlert(
+          title: "Señal débil",
+          description: "Pérdida de señal por más de 5 minutos",
+          timestamp: DateTime.now().subtract(const Duration(hours: 2)),
+          heartRate: 0,
+          type: "informativa",
+        ));
+        await _isar!.cardiacAlerts.put(CardiacAlert(
+          title: "Señal débil",
+          description: "Pérdida de señal por más de 6 minutos",
+          timestamp: DateTime.now().subtract(const Duration(hours: 4)),
+          heartRate: 0,
+          type: "informativa",
+        ));
+        await _isar!.cardiacAlerts.put(CardiacAlert(
+          title: "Ritmo normal",
+          description: "Todo dentro de los parámetros normales",
+          timestamp: DateTime.now().subtract(const Duration(hours: 6)),
+          heartRate: 72,
+          type: "normal",
+        ));
+      });
+    }
   }
 
   /// Comienza una nueva sesión de entrenamiento
@@ -127,5 +162,17 @@ class DatabaseService {
       // Eliminar la sesión
       await isar.trainingSessions.delete(sessionId);
     });
+  }
+
+  /// Registra una nueva alerta cardíaca en Isar
+  Future<void> saveAlert(CardiacAlert alert) async {
+    await isar.writeTxn(() async {
+      await isar.cardiacAlerts.put(alert);
+    });
+  }
+
+  /// Obtiene la lista de alertas ordenadas por fecha descendente
+  Future<List<CardiacAlert>> getAlerts() async {
+    return await isar.cardiacAlerts.where().sortByTimestampDesc().findAll();
   }
 }

@@ -27,9 +27,9 @@ dependencies:
   firebase_auth: ^4.17.8
   cloud_firestore: ^4.15.8
 
-  # UI / Maps
-  flutter_map: ^6.1.0
-  latlong2: ^0.9.0
+  # UI / Charts / Calls
+  fl_chart: ^0.68.0
+  url_launcher: ^6.2.5
 
   # Runtime Permissions Helper
   permission_handler: ^11.3.0

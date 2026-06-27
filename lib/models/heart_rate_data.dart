@@ -44,3 +44,22 @@ class TrainingSession {
     this.maxBpm,
   });
 }
+
+@collection
+class CardiacAlert {
+  Id id = Isar.autoIncrement;
+
+  late String title;
+  late String description;
+  late DateTime timestamp;
+  late int heartRate;
+  late String type; // 'critica', 'informativa', 'normal'
+
+  CardiacAlert({
+    required this.title,
+    required this.description,
+    required this.timestamp,
+    required this.heartRate,
+    required this.type,
+  });
+}

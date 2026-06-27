@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart'; // IMPORTANTE: Vincula tu archivo manual de credenciales
 import 'services/database_service.dart';
-import 'screens/workout_screen.dart';
+import 'screens/login_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -35,7 +35,7 @@ class WahooBleApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Wahoo BLE Tracker',
+      title: 'SIRCAM',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         brightness: Brightness.dark,
@@ -49,7 +49,7 @@ class WahooBleApp extends StatelessWidget {
         ),
         useMaterial3: true,
       ),
-      home: const WorkoutScreen(),
+      home: const LoginScreen(),
     );
   }
 }
