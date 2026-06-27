@@ -1,0 +1,46 @@
+name: wahoo_ble_app
+description: "A Wahoo-style Flutter application to connect with Rockbros Heart Rate Monitor via BLE, storing local data using Isar and uploading to Firebase."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Icons
+  cupertino_icons: ^1.0.6
+
+  # BLE Connectivity
+  flutter_blue_plus: ^1.31.0
+
+  # Offline First Database
+  isar: ^3.1.0+1
+  isar_flutter_libs: ^3.1.0+1
+  path_provider: ^2.1.2
+
+  # Remote Database / Auth
+  firebase_core: ^2.27.0
+  firebase_auth: ^4.17.8
+  cloud_firestore: ^4.15.8
+
+  # UI / Maps
+  flutter_map: ^6.1.0
+  latlong2: ^0.9.0
+
+  # Runtime Permissions Helper
+  permission_handler: ^11.3.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  # Code generation for Isar Schemas
+  isar_generator: ^3.1.0+1
+  build_runner: ^2.4.8
+
+flutter:
+  uses-material-design: true

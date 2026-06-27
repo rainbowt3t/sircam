@@ -1,0 +1,130 @@
+import 'package:isar/isar.dart';
+import 'package:path_provider/path_provider.dart';
+import '../models/heart_rate_data.dart';
+
+class DatabaseService {
+  static final DatabaseService _instance = DatabaseService._internal();
+  factory DatabaseService() => _instance;
+  DatabaseService._internal();
+
+  Isar? _isar;
+  TrainingSession? _activeSession;
+
+  Isar get isar {
+    if (_isar == null) {
+      throw Exception("Isar no ha sido inicializado. Llama a initialize() primero.");
+    }
+    return _isar!;
+  }
+
+  TrainingSession? get activeSession => _activeSession;
+
+  /// Inicializa la base de datos local Isar
+  Future<void> initialize() async {
+    if (_isar != null) return;
+    
+    // Obtener directorio del sistema para almacenar la BD local
+    final dir = await getApplicationDocumentsDirectory();
+    
+    _isar = await Isar.open(
+      [HeartRateDataPointSchema, TrainingSessionSchema],
+      directory: dir.path,
+      inspector: true, // Habilita el inspector de base de datos de Isar en desarrollo
+    );
+  }
+
+  /// Comienza una nueva sesión de entrenamiento
+  Future<TrainingSession> startSession() async {
+    // Si ya hay una sesión activa, la cerramos primero
+    if (_activeSession != null) {
+      await stopSession();
+    }
+
+    final session = TrainingSession(startTime: DateTime.now());
+    
+    await isar.writeTxn(() async {
+      await isar.trainingSessions.put(session);
+    });
+
+    _activeSession = session;
+    return session;
+  }
+
+  /// Guarda un latido de corazón en la sesión activa en tiempo real
+  Future<void> saveHeartRatePoint(int bpm) async {
+    if (_activeSession == null) return;
+
+    final dataPoint = HeartRateDataPoint(
+      bpm: bpm,
+      timestamp: DateTime.now(),
+    );
+
+    await isar.writeTxn(() async {
+      // Guardar el punto de ritmo cardíaco
+      await isar.heartRateDataPoints.put(dataPoint);
+      
+      // Vincular el punto a la sesión actual
+      _activeSession!.dataPoints.add(dataPoint);
+      await _activeSession!.dataPoints.save();
+    });
+  }
+
+  /// Finaliza la sesión actual y calcula las métricas finales (Max BPM y Promedio)
+  Future<TrainingSession?> stopSession() async {
+    if (_activeSession == null) return null;
+
+    final session = _activeSession!;
+    _activeSession = null;
+
+    await isar.writeTxn(() async {
+      // Cargar los puntos para calcular estadísticas
+      await session.dataPoints.load();
+      final points = session.dataPoints.toList();
+
+      if (points.isNotEmpty) {
+        int max = 0;
+        int sum = 0;
+        for (var p in points) {
+          if (p.bpm > max) max = p.bpm;
+          sum += p.bpm;
+        }
+        
+        session.maxBpm = max;
+        session.averageBpm = sum / points.length;
+      } else {
+        session.maxBpm = 0;
+        session.averageBpm = 0.0;
+      }
+
+      session.endTime = DateTime.now();
+
+      // Guardar cambios finales de la sesión
+      await isar.trainingSessions.put(session);
+    });
+
+    return session;
+  }
+
+  /// Obtiene el historial de sesiones guardadas
+  Future<List<TrainingSession>> getSessions() async {
+    return await isar.trainingSessions.where().sortByStartTimeDesc().findAll();
+  }
+
+  /// Elimina una sesión y sus puntos asociados
+  Future<void> deleteSession(int sessionId) async {
+    final session = await isar.trainingSessions.get(sessionId);
+    if (session == null) return;
+
+    await isar.writeTxn(() async {
+      await session.dataPoints.load();
+      final points = session.dataPoints.toList();
+      
+      // Eliminar todos los puntos asociados para no dejar huérfanos
+      for (var p in points) {
+        await isar.heartRateDataPoints.delete(p.id);
+      }
+      // Eliminar la sesión
+      await isar.trainingSessions.delete(sessionId);
+    });
+  }
+}
