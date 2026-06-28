@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import 'package:flutter/foundation.dart';
 
 enum DeviceConnectionState { disconnected, scanning, connecting, connected }
 
@@ -20,6 +21,8 @@ class HeartRateDeviceService {
   final _connectionStateController = StreamController<DeviceConnectionState>.broadcast();
   Stream<DeviceConnectionState> get connectionStateStream => _connectionStateController.stream;
 
+  Stream<BluetoothAdapterState> get adapterStateStream => FlutterBluePlus.adapterState;
+
   DeviceConnectionState _currentState = DeviceConnectionState.disconnected;
   DeviceConnectionState get currentState => _currentState;
 
@@ -36,29 +39,74 @@ class HeartRateDeviceService {
     _connectionStateController.add(state);
   }
 
+  /// Intenta encender el adaptador Bluetooth (solo Android)
+  Future<bool> turnOnBluetooth() async {
+    try {
+      if (await FlutterBluePlus.isSupported == false) {
+        debugPrint("Bluetooth no soportado en este dispositivo");
+        return false;
+      }
+      await FlutterBluePlus.turnOn();
+      return true;
+    } catch (e) {
+      debugPrint("Error al encender Bluetooth: $e");
+      return false;
+    }
+  }
+
   /// Inicia el escaneo de dispositivos filtrando por el Service UUID 0x180D (Ritmo Cardíaco)
   Future<void> startScan() async {
     if (_currentState == DeviceConnectionState.scanning || _currentState == DeviceConnectionState.connected) return;
 
+    // Verificar si el Bluetooth está encendido antes de iniciar escaneo
+    final adapterState = await FlutterBluePlus.adapterState.first;
+    if (adapterState != BluetoothAdapterState.on) {
+      debugPrint("El adaptador Bluetooth está apagado. Intentando encenderlo...");
+      final success = await turnOnBluetooth();
+      if (!success) {
+        _updateState(DeviceConnectionState.disconnected);
+        return;
+      }
+      // Esperar un breve instante para que el hardware se inicialice
+      await Future.delayed(const Duration(seconds: 2));
+    }
+
     _updateState(DeviceConnectionState.scanning);
 
     try {
-      // Inicia el escaneo filtrado para ahorrar batería y CPU
+      // Escaneo amplio sin filtros nativos para capturar sensores que no publican el UUID en la publicidad inicial
       await FlutterBluePlus.startScan(
-        withServices: [Guid(_heartRateServiceUuid)],
-        timeout: const Duration(seconds: 30),
+        timeout: const Duration(seconds: 20),
       );
 
       // Escuchar los dispositivos encontrados
       StreamSubscription<List<ScanResult>>? scanSubscription;
       scanSubscription = FlutterBluePlus.scanResults.listen((results) async {
         for (ScanResult r in results) {
-          if (r.advertisementData.serviceUuids.contains(Guid(_heartRateServiceUuid))) {
-            // Cancelar el scan y la suscripción de escaneo antes de conectar (Evita consumos e inestabilidad)
+          final deviceName = r.device.platformName.trim().toLowerCase();
+          final advName = r.advertisementData.advName.trim().toLowerCase();
+          
+          debugPrint("BLE Detectado -> Nombre: '$deviceName', AdvName: '$advName', ID: ${r.device.remoteId}");
+
+          // Coincidencia amplia: marcas de sensores, palabras clave de ritmo cardíaco o el Service UUID 0x180D
+          bool isHeartRateSensor = deviceName.contains("rockbros") ||
+                                  advName.contains("rockbros") ||
+                                  deviceName.contains("heart") ||
+                                  advName.contains("heart") ||
+                                  deviceName.contains("hr-") ||
+                                  advName.contains("hr-") ||
+                                  deviceName.contains("hrm") ||
+                                  advName.contains("hrm") ||
+                                  r.advertisementData.serviceUuids.contains(Guid(_heartRateServiceUuid));
+
+          if (isHeartRateSensor) {
+            debugPrint("¡Sensor cardíaco coincidente encontrado! Conectando a ${r.device.platformName}...");
+            
+            // Cancelar el escaneo de inmediato para evitar bloqueos y ahorrar batería
             await FlutterBluePlus.stopScan();
             scanSubscription?.cancel();
             
-            // Conectar al monitor Rockbros
+            // Iniciar conexión GATT
             connectToDevice(r.device);
             break;
           }
@@ -73,6 +121,7 @@ class HeartRateDeviceService {
       });
 
     } catch (e) {
+      debugPrint("Error durante el escaneo BLE: $e");
       _updateState(DeviceConnectionState.disconnected);
     }
   }

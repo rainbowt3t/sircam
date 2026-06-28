@@ -1,5 +1,13 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     
+    <!-- Habilitar marcado telefónico en url_launcher para Android 11+ -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.DIAL" />
+            <data android:scheme="tel" />
+        </intent>
+    </queries>
+
     <!-- Permisos de Bluetooth para Android 12+ (API 31+) -->
     <!-- neverForLocation le indica a Google Play que no usamos Bluetooth para espiar ubicación física -->
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN" 

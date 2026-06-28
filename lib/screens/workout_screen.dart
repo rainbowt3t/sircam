@@ -135,6 +135,8 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
   void _triggerAnomalyAlert(int bpm) {
     if (_isShowingAnomalyAlert) return;
 
+    StateSetter? dialogStateSetter;
+
     setState(() {
       _isShowingAnomalyAlert = true;
       _anomalyBpm = bpm;
@@ -147,6 +149,7 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
         setState(() {
           if (_countdownSeconds > 1) {
             _countdownSeconds--;
+            dialogStateSetter?.call(() {}); // Forzar el repintado visual del cuadro de diálogo
           } else {
             // El contador llegó a 0 y el usuario no respondió -> Activar SOS
             _countdownTimer?.cancel();
@@ -162,6 +165,7 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
       barrierDismissible: false, // No se puede cerrar tocando fuera
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) {
+          dialogStateSetter = setDialogState;
           return AlertDialog(
             backgroundColor: const Color(0xFF1E1E1E),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),

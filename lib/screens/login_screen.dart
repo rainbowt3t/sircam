@@ -10,8 +10,8 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _emailController = TextEditingController(text: "paciente@sircam.com");
-  final _passwordController = TextEditingController(text: "sircam2026");
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
   final _firebaseService = FirebaseService();
   bool _isLoading = false;
   bool _isRegisterMode = false;
@@ -253,6 +253,53 @@ class _LoginScreenState extends State<LoginScreen> {
                       ? "¿Ya tienes una cuenta? Inicia Sesión"
                       : "¿No tienes una cuenta? Regístrate gratis",
                   style: const TextStyle(color: Colors.blueAccent),
+                ),
+              ),
+              const SizedBox(height: 20),
+              // Tarjeta de credenciales de prueba con autocompletado
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1E1E1E),
+                  borderRadius: BorderRadius.circular(15),
+                  border: Border.all(color: Colors.blueAccent.withOpacity(0.2)),
+                ),
+                child: Row(
+                  children: [
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "Credenciales de prueba:",
+                            style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            "paciente@sircam.com / sircam2026",
+                            style: TextStyle(color: Colors.grey, fontSize: 11),
+                          ),
+                        ],
+                      ),
+                    ),
+                    TextButton(
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        backgroundColor: Colors.blueAccent.withOpacity(0.1),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          _emailController.text = "paciente@sircam.com";
+                          _passwordController.text = "sircam2026";
+                        });
+                      },
+                      child: const Text(
+                        "Rellenar",
+                        style: TextStyle(color: Colors.greenAccent, fontSize: 12, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
