@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'workout_screen.dart';
 import '../services/firebase_service.dart';
 
@@ -13,27 +14,218 @@ class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _firebaseService = FirebaseService();
+  
   bool _isLoading = false;
   bool _isRegisterMode = false;
+  bool _obscurePassword = true;
+  bool _rememberMe = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSavedCredentials();
+  }
+
+  // Carga credenciales guardadas de SharedPreferences
+  Future<void> _loadSavedCredentials() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      setState(() {
+        _rememberMe = prefs.getBool('remember_me') ?? false;
+        if (_rememberMe) {
+          _emailController.text = prefs.getString('saved_email') ?? '';
+          _passwordController.text = prefs.getString('saved_password') ?? '';
+        }
+      });
+    } catch (e) {
+      debugPrint("Error cargando credenciales: $e");
+    }
+  }
+
+  // Guarda o remueve credenciales de SharedPreferences
+  Future<void> _saveCredentials(String email, String password) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (_rememberMe) {
+        await prefs.setBool('remember_me', true);
+        await prefs.setString('saved_email', email);
+        await prefs.setString('saved_password', password);
+      } else {
+        await prefs.remove('remember_me');
+        await prefs.remove('saved_email');
+        await prefs.remove('saved_password');
+      }
+    } catch (e) {
+      debugPrint("Error guardando credenciales: $e");
+    }
+  }
+
+  // Validaciones del lado del cliente
+  bool _validateFields(String email, String password) {
+    if (email.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("⚠️ Por favor, complete todos los campos."), backgroundColor: Colors.amber),
+      );
+      return false;
+    }
+    // Validación de formato de correo electrónico coherente (con @ y .)
+    final emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+    if (!emailRegex.hasMatch(email)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("⚠️ El correo electrónico ingresado no tiene un formato válido (Ej: usuario@gmail.com)."), backgroundColor: Colors.redAccent),
+      );
+      return false;
+    }
+    // Reglas de contraseña (mínimo 6 caracteres para Firebase Auth)
+    if (password.length < 6) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("⚠️ La contraseña debe tener como mínimo 6 caracteres."), backgroundColor: Colors.redAccent),
+      );
+      return false;
+    }
+    return true;
+  }
 
   Future<void> _handleAuth() async {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+
+    if (!_validateFields(email, password)) return;
+
     setState(() {
       _isLoading = true;
     });
 
     try {
-      // Intentar autenticación en Firebase
-      await _firebaseService.signInAnonymously();
-      
-      if (mounted) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => const WorkoutScreen()),
-        );
+      if (_isRegisterMode) {
+        // Registro Real en Firebase Auth
+        await _firebaseService.signUpWithEmailAndPassword(email, password);
+        await _saveCredentials(email, password);
+        
+        if (mounted) {
+          // Ventana de verificación de correo simulada
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (context) => AlertDialog(
+              backgroundColor: const Color(0xFF1E1E1E),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              title: const Row(
+                children: [
+                  Icon(Icons.mark_email_unread_rounded, color: Colors.blueAccent, size: 28),
+                  SizedBox(width: 10),
+                  Text("Verificación enviada", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                ],
+              ),
+              content: Text(
+                "Le estará llegando una verificación a su correo personal ($email). Por favor revise su bandeja de entrada o spam para validar su cuenta SIRCAM.",
+                style: const TextStyle(color: Colors.grey, fontSize: 13, height: 1.4),
+              ),
+              actions: [
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.blueAccent),
+                  child: const Text("OK", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  onPressed: () {
+                    Navigator.of(context).pop(); // Cerrar diálogo
+                    Navigator.of(context).pushReplacement(
+                      MaterialPageRoute(builder: (context) => const WorkoutScreen()),
+                    );
+                  },
+                ),
+              ],
+            ),
+          );
+        }
+      } else {
+        // Login Real en Firebase Auth
+        await _firebaseService.signInWithEmailAndPassword(email, password);
+        await _saveCredentials(email, password);
+        
+        if (mounted) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (context) => const WorkoutScreen()),
+          );
+        }
       }
     } catch (e) {
-      // Modo local/offline en caso de fallo (Firebase no configurado o sin conexión)
-      debugPrint("Firebase Auth falló, entrando en modo local: $e");
-      _enterLocalMode(e.toString());
+      debugPrint("Error de Firebase: $e");
+      String errorMsg = "Ocurrió un error inesperado al autenticar.";
+      
+      if (e.toString().contains("email-already-in-use")) {
+        errorMsg = "El correo ya se encuentra registrado por otro usuario.";
+      } else if (e.toString().contains("wrong-password") || e.toString().contains("invalid-credential")) {
+        errorMsg = "Credenciales incorrectas. Verifique su correo o contraseña.";
+      } else if (e.toString().contains("user-not-found")) {
+        errorMsg = "El usuario no existe. Por favor regístrese.";
+      } else if (e.toString().contains("invalid-email")) {
+        errorMsg = "El correo electrónico no es válido.";
+      }
+
+      // Si Firebase no está configurado (no-app), o si no se ha activado el método Email/Password en la consola
+      if (e.toString().contains("no Firebase App") || 
+          e.toString().contains("core/no-app") ||
+          e.toString().contains("CONFIGURATION_NOT_FOUND")) {
+        
+        String warningText = "Aviso: Ejecutando en Modo Local (Firebase no configurado).";
+        if (e.toString().contains("CONFIGURATION_NOT_FOUND")) {
+          warningText = "⚠️ Activa 'Correo electrónico y contraseña' en la sección Authentication de tu consola Firebase. Ingresando en Modo Local...";
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(warningText),
+            backgroundColor: Colors.amber[800],
+            duration: const Duration(seconds: 5),
+          ),
+        );
+        await _saveCredentials(email, password);
+        if (mounted) {
+          if (_isRegisterMode) {
+            showDialog(
+              context: context,
+              barrierDismissible: false,
+              builder: (context) => AlertDialog(
+                backgroundColor: const Color(0xFF1E1E1E),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                title: const Row(
+                  children: [
+                    Icon(Icons.mark_email_unread_rounded, color: Colors.blueAccent, size: 28),
+                    SizedBox(width: 10),
+                    Text("Verificación enviada", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+                content: Text(
+                  "Le estará llegando una verificación a su correo personal ($email). Por favor revise su bandeja de entrada o spam para validar su cuenta SIRCAM.",
+                  style: const TextStyle(color: Colors.grey, fontSize: 13, height: 1.4),
+                ),
+                actions: [
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.blueAccent),
+                    child: const Text("OK", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      Navigator.of(context).pushReplacement(
+                        MaterialPageRoute(builder: (context) => const WorkoutScreen()),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            );
+          } else {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (context) => const WorkoutScreen()),
+            );
+          }
+        }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("❌ $errorMsg"),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
     } finally {
       if (mounted) {
         setState(() {
@@ -56,34 +248,18 @@ class _LoginScreenState extends State<LoginScreen> {
         );
       }
     } catch (e) {
-      debugPrint("Firebase Auth anónimo falló, entrando en modo local: $e");
-      _enterLocalMode(e.toString());
+      debugPrint("Firebase Auth anónimo falló, ingresando de forma local: $e");
+      if (mounted) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => const WorkoutScreen()),
+        );
+      }
     } finally {
       if (mounted) {
         setState(() {
           _isLoading = false;
         });
       }
-    }
-  }
-
-  void _enterLocalMode(String errorMsg) {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("Acceso Local Activo (Firebase offline/no configurado)"),
-          backgroundColor: Colors.amber[800],
-          duration: const Duration(seconds: 2),
-        ),
-      );
-      
-      Future.delayed(const Duration(seconds: 1), () {
-        if (mounted) {
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (context) => const WorkoutScreen()),
-          );
-        }
-      });
     }
   }
 
@@ -170,7 +346,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
               TextField(
                 controller: _passwordController,
-                obscureText: true,
+                obscureText: _obscurePassword,
                 style: const TextStyle(color: Colors.white),
                 decoration: InputDecoration(
                   labelText: "Contraseña",
@@ -178,6 +354,17 @@ class _LoginScreenState extends State<LoginScreen> {
                   filled: true,
                   fillColor: const Color(0xFF1E1E1E),
                   prefixIcon: const Icon(Icons.lock, color: Colors.blueAccent),
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                      color: Colors.grey[500],
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _obscurePassword = !_obscurePassword;
+                      });
+                    },
+                  ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(15),
                     borderSide: BorderSide(color: Colors.grey[800]!),
@@ -188,7 +375,28 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 30),
+              const SizedBox(height: 15),
+
+              // Opción de Guardar Datos (Recordarme)
+              Row(
+                children: [
+                  Checkbox(
+                    value: _rememberMe,
+                    activeColor: Colors.blueAccent,
+                    checkColor: Colors.white,
+                    onChanged: (value) {
+                      setState(() {
+                        _rememberMe = value ?? false;
+                      });
+                    },
+                  ),
+                  const Text(
+                    "Guardar mis credenciales",
+                    style: TextStyle(color: Colors.grey, fontSize: 13),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
 
               // Botón de autenticación
               SizedBox(
@@ -253,53 +461,6 @@ class _LoginScreenState extends State<LoginScreen> {
                       ? "¿Ya tienes una cuenta? Inicia Sesión"
                       : "¿No tienes una cuenta? Regístrate gratis",
                   style: const TextStyle(color: Colors.blueAccent),
-                ),
-              ),
-              const SizedBox(height: 20),
-              // Tarjeta de credenciales de prueba con autocompletado
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1E1E1E),
-                  borderRadius: BorderRadius.circular(15),
-                  border: Border.all(color: Colors.blueAccent.withOpacity(0.2)),
-                ),
-                child: Row(
-                  children: [
-                    const Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            "Credenciales de prueba:",
-                            style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
-                          ),
-                          SizedBox(height: 4),
-                          Text(
-                            "paciente@sircam.com / sircam2026",
-                            style: TextStyle(color: Colors.grey, fontSize: 11),
-                          ),
-                        ],
-                      ),
-                    ),
-                    TextButton(
-                      style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        backgroundColor: Colors.blueAccent.withOpacity(0.1),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      ),
-                      onPressed: () {
-                        setState(() {
-                          _emailController.text = "paciente@sircam.com";
-                          _passwordController.text = "sircam2026";
-                        });
-                      },
-                      child: const Text(
-                        "Rellenar",
-                        style: TextStyle(color: Colors.greenAccent, fontSize: 12, fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                  ],
                 ),
               ),
             ],

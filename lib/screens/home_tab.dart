@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../services/heart_rate_device_service.dart';
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 
 class HomeTab extends StatefulWidget {
   final int currentHeartRate;
@@ -77,6 +78,15 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
     return "Taquicardia Detectada\n¡Alerta de salud!";
   }
 
+  String _getFormattedDate() {
+    final now = DateTime.now();
+    final months = [
+      "enero", "febrero", "marzo", "abril", "mayo", "junio",
+      "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"
+    ];
+    return "Hoy es ${now.day.toString().padLeft(2, '0')} de ${months[now.month - 1]} de ${now.year}";
+  }
+
   Color _getHeartRateStatusColor(int bpm) {
     if (bpm == 0) return Colors.grey;
     if (bpm < 50) return Colors.amberAccent;
@@ -112,7 +122,7 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    "Hoy es 07 de mayo de 2024",
+                    _getFormattedDate(),
                     style: TextStyle(
                       color: Colors.grey[500],
                       fontSize: 14,
@@ -125,70 +135,158 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
           ),
           const SizedBox(height: 25),
 
-          // Tarjeta de estado de conexión del sensor
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: const Color(0xFF1E1E1E),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.grey[850]!),
-            ),
-            child: StreamBuilder<DeviceConnectionState>(
-              stream: _bleService.connectionStateStream,
-              initialData: _bleService.currentState,
-              builder: (context, snapshot) {
-                final state = snapshot.data ?? DeviceConnectionState.disconnected;
-                final isConnected = state == DeviceConnectionState.connected;
+          // Tarjeta de estado de conexión del sensor interactiva
+          StreamBuilder<BluetoothAdapterState>(
+            stream: _bleService.adapterStateStream,
+            initialData: BluetoothAdapterState.unknown,
+            builder: (context, adapterSnapshot) {
+              final adapterState = adapterSnapshot.data ?? BluetoothAdapterState.unknown;
 
-                return Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(
+              if (adapterState == BluetoothAdapterState.off ||
+                  adapterState == BluetoothAdapterState.turningOff ||
+                  adapterState == BluetoothAdapterState.unauthorized) {
+                return GestureDetector(
+                  onTap: () => _bleService.turnOnBluetooth(),
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: Colors.amberAccent.withOpacity(0.5), width: 1.5),
+                    ),
+                    child: const Row(
                       children: [
-                        Icon(
-                          isConnected ? Icons.bluetooth_connected : Icons.bluetooth_disabled,
-                          color: isConnected ? Colors.greenAccent : Colors.redAccent,
-                          size: 24,
-                        ),
-                        const SizedBox(width: 12),
+                        Icon(Icons.bluetooth_disabled, color: Colors.amberAccent, size: 24),
+                        SizedBox(width: 12),
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              isConnected ? "Dispositivo conectado" : "Buscando sensor...",
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
-                              ),
+                              "Bluetooth Desactivado",
+                              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
                             ),
-                            const SizedBox(height: 2),
+                            SizedBox(height: 2),
                             Text(
-                              isConnected ? "Rockbros HR Monitor" : "Toca el botón Bluetooth",
-                              style: TextStyle(
-                                color: Colors.grey[500],
-                                fontSize: 12,
-                              ),
+                              "Presiona aquí para Activar",
+                              style: TextStyle(color: Colors.amberAccent, fontSize: 12),
                             ),
                           ],
                         ),
                       ],
                     ),
-                    if (isConnected)
-                      Row(
+                  ),
+                );
+              }
+
+              return StreamBuilder<DeviceConnectionState>(
+                stream: _bleService.connectionStateStream,
+                initialData: _bleService.currentState,
+                builder: (context, snapshot) {
+                  final state = snapshot.data ?? DeviceConnectionState.disconnected;
+                  final isConnected = state == DeviceConnectionState.connected;
+                  
+                  String statusText;
+                  String subText;
+                  IconData statusIcon;
+                  Color iconColor;
+                  VoidCallback onTapAction;
+
+                  if (state == DeviceConnectionState.connected) {
+                    statusText = "Dispositivo conectado";
+                    subText = "Rockbros HR Monitor";
+                    statusIcon = Icons.bluetooth_connected;
+                    iconColor = Colors.greenAccent;
+                    onTapAction = () => _bleService.disconnect();
+                  } else if (state == DeviceConnectionState.scanning) {
+                    statusText = "Buscando sensor...";
+                    subText = "Acerca tu banda cardíaca";
+                    statusIcon = Icons.bluetooth_searching;
+                    iconColor = Colors.blueAccent;
+                    onTapAction = () => _bleService.stopScan();
+                  } else if (state == DeviceConnectionState.connecting) {
+                    statusText = "Conectando...";
+                    subText = "Estableciendo enlace BLE...";
+                    statusIcon = Icons.bluetooth_connected;
+                    iconColor = Colors.orangeAccent;
+                    onTapAction = () {};
+                  } else {
+                    statusText = "Monitoreo inactivo";
+                    subText = "Presiona aquí para buscar sensor";
+                    statusIcon = Icons.bluetooth_disabled;
+                    iconColor = Colors.redAccent;
+                    onTapAction = () => _bleService.startScan();
+                  }
+
+                  return GestureDetector(
+                    onTap: onTapAction,
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1E1E1E),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: isConnected ? Colors.greenAccent.withOpacity(0.5) : Colors.grey[850]!,
+                          width: isConnected ? 1.5 : 1.0,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Icon(Icons.battery_5_bar, color: Colors.greenAccent[400], size: 18),
-                          const SizedBox(width: 4),
-                          const Text(
-                            "Batería: 85%",
-                            style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+                          Row(
+                            children: [
+                              Icon(
+                                statusIcon,
+                                color: iconColor,
+                                size: 24,
+                              ),
+                              const SizedBox(width: 12),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    statusText,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    subText,
+                                    style: TextStyle(
+                                      color: Colors.grey[500],
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
                           ),
+                          if (isConnected)
+                            Row(
+                              children: [
+                                Icon(Icons.battery_5_bar, color: Colors.greenAccent[400], size: 18),
+                                const SizedBox(width: 4),
+                                const Text(
+                                  "Batería: 85%",
+                                  style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+                                ),
+                              ],
+                            ),
+                          if (state == DeviceConnectionState.scanning)
+                            const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.blueAccent),
+                            ),
                         ],
                       ),
-                  ],
-                );
-              },
-            ),
+                    ),
+                  );
+                },
+              );
+            },
           ),
           const SizedBox(height: 25),
 
@@ -328,16 +426,31 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        "ÚLTIMA ACTUALIZACIÓN",
+                        "ESTADO DE ALERTAS",
                         style: TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 8),
-                      const Text(
-                        "10:24:30",
-                        style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900),
+                      Text(
+                        widget.currentHeartRate >= 125 || (widget.currentHeartRate <= 45 && widget.currentHeartRate > 0)
+                            ? "¡ALERTA!"
+                            : "ESTABLE",
+                        style: TextStyle(
+                          color: widget.currentHeartRate >= 125 || (widget.currentHeartRate <= 45 && widget.currentHeartRate > 0)
+                              ? Colors.redAccent
+                              : Colors.greenAccent,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w900,
+                        ),
                       ),
                       const SizedBox(height: 2),
-                      Text(_lastUpdateString, style: const TextStyle(color: Colors.grey, fontSize: 9)),
+                      Text(
+                        widget.currentHeartRate >= 125
+                            ? "Taquicardia"
+                            : (widget.currentHeartRate <= 45 && widget.currentHeartRate > 0
+                                ? "Bradicardia"
+                                : "Pulso normal"),
+                        style: const TextStyle(color: Colors.grey, fontSize: 9),
+                      ),
                     ],
                   ),
                 ),

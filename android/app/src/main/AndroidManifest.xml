@@ -26,7 +26,7 @@
         android:maxSdkVersion="30" />
 
     <application
-        android:label="Wahoo BLE Tracker"
+        android:label="SIRCAM"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

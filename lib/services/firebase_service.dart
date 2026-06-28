@@ -22,6 +22,21 @@ class FirebaseService {
     return await _auth.signInAnonymously();
   }
 
+  /// Registra un nuevo usuario con correo y contraseña reales en Firebase Auth
+  Future<UserCredential> signUpWithEmailAndPassword(String email, String password) async {
+    return await _auth.createUserWithEmailAndPassword(email: email.trim(), password: password);
+  }
+
+  /// Inicia sesión con correo y contraseña reales en Firebase Auth
+  Future<UserCredential> signInWithEmailAndPassword(String email, String password) async {
+    return await _auth.signInWithEmailAndPassword(email: email.trim(), password: password);
+  }
+
+  /// Cierra la sesión activa del usuario
+  Future<void> signOut() async {
+    await _auth.signOut();
+  }
+
   /// Sube el resumen y los puntos serializados en un solo documento
   /// Optimización Spark Plan: 1 sesión = 1 escritura en lugar de miles de escrituras individuales
   Future<void> uploadSession(TrainingSession session) async {

@@ -29,6 +29,15 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
   Timer? _trainingTimer;
   StreamSubscription<int>? _hrSubscription;
 
+  // Lógica de cronómetro de conexión Bluetooth
+  StreamSubscription<DeviceConnectionState>? _connectionSubscription;
+  Timer? _connectionTimer;
+  Duration _connectionDuration = Duration.zero;
+  DateTime? _connectionStartTime;
+
+  // Bandera de ficha médica para usuario nuevo
+  bool _hasCompletedMedicalData = false;
+
   // Lógica de SOS y Anomalías
   Timer? _anomalyTriggerTimer;
   bool _isShowingAnomalyAlert = false;
@@ -40,7 +49,7 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
   void initState() {
     super.initState();
 
-    // Escuchar del servicio BLE
+    // 1. Escuchar datos de ritmo cardíaco (BPM)
     _hrSubscription = _bleService.heartRateStream.listen((bpm) {
       if (mounted) {
         setState(() {
@@ -56,11 +65,37 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
       // Evaluar si hay taquicardia/bradicardia severa
       _evaluateHeartRateAnomalies(bpm);
     });
+
+    // 2. Escuchar estado de conexión para cronometrar tiempo de conexión y resetear a 0 si se desconecta
+    _connectionSubscription = _bleService.connectionStateStream.listen((state) {
+      if (state == DeviceConnectionState.connected) {
+        _connectionStartTime = DateTime.now();
+        _connectionTimer?.cancel();
+        _connectionTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+          if (mounted) {
+            setState(() {
+              _connectionDuration = DateTime.now().difference(_connectionStartTime!);
+            });
+          }
+        });
+      } else {
+        _connectionTimer?.cancel();
+        _connectionTimer = null;
+        if (mounted) {
+          setState(() {
+            _currentHeartRate = 0; // Detiene y resetea a "--" lpm
+            _connectionDuration = Duration.zero;
+          });
+        }
+      }
+    });
   }
 
   @override
   void dispose() {
     _hrSubscription?.cancel();
+    _connectionSubscription?.cancel();
+    _connectionTimer?.cancel();
     _trainingTimer?.cancel();
     _anomalyTriggerTimer?.cancel();
     _countdownTimer?.cancel();
@@ -263,14 +298,28 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
     final List<Widget> tabs = [
       HomeTab(
         currentHeartRate: _currentHeartRate,
-        elapsedTime: _elapsedTime,
+        elapsedTime: _connectionDuration, // Refleja el tiempo de conexión real Bluetooth
         isTrainingActive: _isTrainingActive,
         onToggleTraining: _toggleTraining,
       ),
       const HistoryTab(),
-      SosTab(currentHeartRate: _currentHeartRate),
+      SosTab(
+        currentHeartRate: _currentHeartRate,
+        hasCompletedMedicalData: _hasCompletedMedicalData,
+        onRedirectToProfile: () {
+          setState(() {
+            _currentIndex = 4; // Cambiar pestaña a Perfil
+          });
+        },
+      ),
       const AlertsTab(),
-      const ProfileTab(),
+      ProfileTab(
+        onMedicalDataCompleted: () {
+          setState(() {
+            _hasCompletedMedicalData = true; // Desbloquea SOS
+          });
+        },
+      ),
     ];
 
     return Scaffold(

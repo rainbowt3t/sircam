@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:flutter/foundation.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 enum DeviceConnectionState { disconnected, scanning, connecting, connected }
 
@@ -58,6 +59,21 @@ class HeartRateDeviceService {
   Future<void> startScan() async {
     if (_currentState == DeviceConnectionState.scanning || _currentState == DeviceConnectionState.connected) return;
 
+    _updateState(DeviceConnectionState.scanning);
+
+    // Solicitar y comprobar permisos necesarios en tiempo de ejecución
+    try {
+      if (await Permission.bluetoothScan.request().isDenied ||
+          await Permission.bluetoothConnect.request().isDenied ||
+          await Permission.locationWhenInUse.request().isDenied) {
+        debugPrint("Permisos denegados para escaneo BLE.");
+        _updateState(DeviceConnectionState.disconnected);
+        return;
+      }
+    } catch (e) {
+      debugPrint("Error al solicitar permisos: $e");
+    }
+
     // Verificar si el Bluetooth está encendido antes de iniciar escaneo
     final adapterState = await FlutterBluePlus.adapterState.first;
     if (adapterState != BluetoothAdapterState.on) {
@@ -70,8 +86,6 @@ class HeartRateDeviceService {
       // Esperar un breve instante para que el hardware se inicialice
       await Future.delayed(const Duration(seconds: 2));
     }
-
-    _updateState(DeviceConnectionState.scanning);
 
     try {
       // Escaneo amplio sin filtros nativos para capturar sensores que no publican el UUID en la publicidad inicial

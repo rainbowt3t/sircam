@@ -3,7 +3,8 @@ import 'package:url_launcher/url_launcher.dart';
 import 'login_screen.dart';
 
 class ProfileTab extends StatefulWidget {
-  const ProfileTab({Key? key}) : super(key: key);
+  final VoidCallback? onMedicalDataCompleted;
+  const ProfileTab({Key? key, this.onMedicalDataCompleted}) : super(key: key);
 
   @override
   State<ProfileTab> createState() => _ProfileTabState();
@@ -12,11 +13,11 @@ class ProfileTab extends StatefulWidget {
 class _ProfileTabState extends State<ProfileTab> {
   bool _isPremium = false;
 
-  // Datos médicos editables en tiempo de ejecución (Isar / Memoria)
-  String _bloodType = "O+";
-  String _diseases = "Hipertensión, Arritmia";
-  String _allergies = "Ninguna";
-  String _medications = "Aspirina 100mg";
+  // Datos médicos inicialmente vacíos para simular un usuario nuevo
+  String _bloodType = "";
+  String _diseases = "";
+  String _allergies = "";
+  String _medications = "";
 
   // Contactos de emergencia editables
   final List<Map<String, String>> _contacts = [
@@ -230,10 +231,10 @@ class _ProfileTabState extends State<ProfileTab> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _buildDialogField("Grupo Sanguíneo", bloodController),
-              _buildDialogField("Enfermedades Crónicas", diseasesController),
-              _buildDialogField("Alergias", allergiesController),
-              _buildDialogField("Medicamentos Diarios", medsController),
+              _buildDialogField("Grupo Sanguíneo (Ej: O+)", bloodController),
+              _buildDialogField("Enfermedades Crónicas (Ej: Hipertensión)", diseasesController),
+              _buildDialogField("Alergias (Ej: Penicilina o Ninguna)", allergiesController),
+              _buildDialogField("Medicamentos Diarios (Ej: Aspirina)", medsController),
             ],
           ),
         ),
@@ -252,6 +253,12 @@ class _ProfileTabState extends State<ProfileTab> {
                 _allergies = allergiesController.text;
                 _medications = medsController.text;
               });
+              
+              // Notificar al padre que se ha completado la información médica
+              if (_bloodType.isNotEmpty && widget.onMedicalDataCompleted != null) {
+                widget.onMedicalDataCompleted!();
+              }
+
               Navigator.of(context).pop();
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text("✅ Información médica actualizada."), backgroundColor: Colors.green),
@@ -476,8 +483,8 @@ class _ProfileTabState extends State<ProfileTab> {
                 const SizedBox(height: 12),
                 Text("Límite Taquicardia: ${_maxAlertBpm.round()} BPM", style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
                 Slider(
-                  min: 100,
-                  max: 160,
+                  min: 100.0,
+                  max: 160.0,
                   value: _maxAlertBpm,
                   activeColor: Colors.redAccent,
                   onChanged: (val) {
@@ -487,8 +494,8 @@ class _ProfileTabState extends State<ProfileTab> {
                 ),
                 Text("Límite Bradicardia: ${_minAlertBpm.round()} BPM", style: const TextStyle(color: Colors.amberAccent, fontSize: 12)),
                 Slider(
-                  min: 35,
-                  max: 60,
+                  min: 35.0,
+                  max: 60.0,
                   value: _minAlertBpm,
                   activeColor: Colors.amber,
                   onChanged: (val) {
@@ -637,10 +644,30 @@ class _ProfileTabState extends State<ProfileTab> {
           const SizedBox(height: 25),
 
           // Menu de opciones funcionales
-          _buildMenuItem(Icons.local_hospital, "Información médica", _diseases, _showMedicalInfoDialog),
-          _buildMenuItem(Icons.people, "Contactos de emergencia", "${_contacts.length} contactos asociados", _showEmergencyContactsDialog),
-          _buildMenuItem(Icons.bluetooth, "Dispositivo", "Rockbros HR Monitor (Batería: 85%)", _showDeviceDetailsDialog),
-          _buildMenuItem(Icons.settings, "Configuración", "Notificaciones, límites cardíacos", _showSettingsDialog),
+          _buildMenuItem(
+            Icons.local_hospital,
+            "Información médica",
+            _bloodType.isEmpty ? "Pendiente de completar" : "$_bloodType • $_diseases",
+            _showMedicalInfoDialog,
+          ),
+          _buildMenuItem(
+            Icons.people,
+            "Contactos de emergencia",
+            "${_contacts.length} contactos asociados",
+            _showEmergencyContactsDialog,
+          ),
+          _buildMenuItem(
+            Icons.bluetooth,
+            "Dispositivo",
+            "Rockbros HR Monitor (Batería: 85%)",
+            _showDeviceDetailsDialog,
+          ),
+          _buildMenuItem(
+            Icons.settings,
+            "Configuración",
+            "Notificaciones, límites cardíacos",
+            _showSettingsDialog,
+          ),
           
           const SizedBox(height: 20),
           // Cerrar sesión
@@ -669,12 +696,13 @@ class _ProfileTabState extends State<ProfileTab> {
   }
 
   Widget _buildMenuItem(IconData icon, String title, String subtitle, VoidCallback onTap) {
+    bool isPending = subtitle.contains("Pendiente");
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        color: Colors.transparent, // Asegura que toda la celda responda al tap
         padding: const EdgeInsets.symmetric(vertical: 16),
         decoration: BoxDecoration(
+          color: Colors.transparent,
           border: Border(bottom: BorderSide(color: Colors.grey[900]!)),
         ),
         child: Row(
@@ -694,7 +722,11 @@ class _ProfileTabState extends State<ProfileTab> {
                     const SizedBox(height: 2),
                     Text(
                       subtitle,
-                      style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                      style: TextStyle(
+                        color: isPending ? Colors.redAccent : Colors.grey[500],
+                        fontSize: 12,
+                        fontWeight: isPending ? FontWeight.bold : FontWeight.normal,
+                      ),
                     ),
                   ],
                 ),

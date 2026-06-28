@@ -33,6 +33,7 @@ dependencies:
 
   # Runtime Permissions Helper
   permission_handler: ^11.3.0
+  shared_preferences: ^2.2.2
 
 dev_dependencies:
   flutter_test:

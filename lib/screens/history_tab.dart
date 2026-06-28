@@ -29,6 +29,10 @@ class _HistoryTabState extends State<HistoryTab> {
 
     try {
       final sessions = await _dbService.getSessions();
+      // Resolver y cargar asíncronamente los IsarLinks de cada sesión
+      for (var s in sessions) {
+        await s.dataPoints.load();
+      }
       setState(() {
         _sessions = sessions;
       });
@@ -58,6 +62,31 @@ class _HistoryTabState extends State<HistoryTab> {
       FlSpot(22, 65),
       FlSpot(24, 70),
     ];
+  }
+
+  List<FlSpot> _getChartSpots() {
+    if (_sessions.isEmpty) {
+      return _getDemoSpots();
+    }
+    
+    // Obtener los puntos de la sesión más reciente
+    final latestSession = _sessions.first;
+    final points = latestSession.dataPoints.toList();
+    if (points.isEmpty) {
+      return _getDemoSpots();
+    }
+    
+    List<FlSpot> spots = [];
+    
+    // Mapear un máximo de 24 puntos espaciados de 0 a 24
+    int step = (points.length / 24).ceil();
+    if (step == 0) step = 1;
+    
+    for (int i = 0; i < points.length && spots.length < 25; i += step) {
+      spots.add(FlSpot(spots.length.toDouble(), points[i].bpm.toDouble()));
+    }
+    
+    return spots;
   }
 
   @override
@@ -213,7 +242,7 @@ class _HistoryTabState extends State<HistoryTab> {
                 maxY: 150,
                 lineBarsData: [
                   LineChartBarData(
-                    spots: _getDemoSpots(),
+                    spots: _getChartSpots(),
                     isCurved: true,
                     color: Colors.greenAccent,
                     barWidth: 2,
