@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:math';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:flutter/foundation.dart';
@@ -43,6 +44,7 @@ class HeartRateDeviceService {
   /// Intenta encender el adaptador Bluetooth (solo Android)
   Future<bool> turnOnBluetooth() async {
     try {
+      if (!Platform.isAndroid) return false;
       if (await FlutterBluePlus.isSupported == false) {
         debugPrint("Bluetooth no soportado en este dispositivo");
         return false;
@@ -61,14 +63,22 @@ class HeartRateDeviceService {
 
     _updateState(DeviceConnectionState.scanning);
 
-    // Solicitar y comprobar permisos necesarios en tiempo de ejecución
+    // Solicitar y comprobar permisos necesarios según el sistema operativo
     try {
-      if (await Permission.bluetoothScan.request().isDenied ||
-          await Permission.bluetoothConnect.request().isDenied ||
-          await Permission.locationWhenInUse.request().isDenied) {
-        debugPrint("Permisos denegados para escaneo BLE.");
-        _updateState(DeviceConnectionState.disconnected);
-        return;
+      if (Platform.isAndroid) {
+        if (await Permission.bluetoothScan.request().isDenied ||
+            await Permission.bluetoothConnect.request().isDenied ||
+            await Permission.locationWhenInUse.request().isDenied) {
+          debugPrint("Permisos denegados para escaneo BLE en Android.");
+          _updateState(DeviceConnectionState.disconnected);
+          return;
+        }
+      } else if (Platform.isIOS) {
+        if (await Permission.bluetooth.request().isDenied) {
+          debugPrint("Permisos de Bluetooth denegados en iOS.");
+          _updateState(DeviceConnectionState.disconnected);
+          return;
+        }
       }
     } catch (e) {
       debugPrint("Error al solicitar permisos: $e");
@@ -77,14 +87,18 @@ class HeartRateDeviceService {
     // Verificar si el Bluetooth está encendido antes de iniciar escaneo
     final adapterState = await FlutterBluePlus.adapterState.first;
     if (adapterState != BluetoothAdapterState.on) {
-      debugPrint("El adaptador Bluetooth está apagado. Intentando encenderlo...");
-      final success = await turnOnBluetooth();
-      if (!success) {
+      debugPrint("El adaptador Bluetooth está apagado.");
+      if (Platform.isAndroid) {
+        final success = await turnOnBluetooth();
+        if (!success) {
+          _updateState(DeviceConnectionState.disconnected);
+          return;
+        }
+        await Future.delayed(const Duration(seconds: 2));
+      } else {
         _updateState(DeviceConnectionState.disconnected);
         return;
       }
-      // Esperar un breve instante para que el hardware se inicialice
-      await Future.delayed(const Duration(seconds: 2));
     }
 
     try {

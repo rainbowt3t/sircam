@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Wahoo BLE Tracker</string>
+	<string>SIRCAM</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -13,7 +13,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>wahoo_ble_app</string>
+	<string>SIRCAM</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -46,14 +46,28 @@
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 
+	<!-- Esquemas de URL permitidos (Requerido en iOS 14+ para llamadas al 106 / SAMU) -->
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>tel</string>
+	</array>
+
+	<!-- Modos en segundo plano -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>bluetooth-central</string>
+	</array>
+
 	<!-- Permisos BLE para iOS -->
 	<key>NSBluetoothAlwaysUsageDescription</key>
-	<string>Esta aplicación requiere acceso continuo al Bluetooth para conectarse al monitor de ritmo cardíaco Rockbros en segundo plano y tiempo real.</string>
+	<string>SIRCAM requiere acceso continuo al Bluetooth para conectarse al monitor de ritmo cardíaco Rockbros en tiempo real.</string>
 	<key>NSBluetoothPeripheralUsageDescription</key>
-	<string>Esta aplicación requiere acceso al Bluetooth periférico para conectarse al monitor de ritmo cardíaco Rockbros.</string>
+	<string>SIRCAM requiere acceso al Bluetooth periférico para conectarse al monitor de ritmo cardíaco Rockbros.</string>
 	
-	<!-- Permiso de Ubicación para el Mapa (Opcional) -->
+	<!-- Permiso de Ubicación para iOS -->
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Esta aplicación requiere acceso a tu ubicación actual para mostrar tu recorrido en tiempo real en el mapa.</string>
+	<string>SIRCAM requiere acceso a tu ubicación actual para reportar tu posicionamiento exacto al SAMU en emergencias.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>SIRCAM requiere ubicación en segundo plano para enviar reportes médicos georreferenciados de emergencia al SAMU.</string>
 </dict>
 </plist>
