@@ -52,12 +52,6 @@
 		<string>tel</string>
 	</array>
 
-	<!-- Modos en segundo plano -->
-	<key>UIBackgroundModes</key>
-	<array>
-		<string>bluetooth-central</string>
-	</array>
-
 	<!-- Permisos BLE para iOS -->
 	<key>NSBluetoothAlwaysUsageDescription</key>
 	<string>SIRCAM requiere acceso continuo al Bluetooth para conectarse al monitor de ritmo cardíaco Rockbros en tiempo real.</string>
