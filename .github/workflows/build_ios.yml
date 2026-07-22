@@ -27,9 +27,6 @@ jobs:
       - name: Descargar artefactos de iOS (Precache)
         run: flutter precache --ios
 
-      - name: Generar archivos de configuracion de Flutter iOS
-        run: flutter build ios --config-only
-
       - name: Compilar instalador iOS (IPA)
         run: flutter build ipa --release --no-codesign
 
