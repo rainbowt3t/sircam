@@ -10,6 +10,7 @@ import 'alerts_tab.dart';
 import 'profile_tab.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class WorkoutScreen extends StatefulWidget {
   const WorkoutScreen({Key? key}) : super(key: key);
@@ -273,7 +274,15 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
     });
 
     final prefs = await SharedPreferences.getInstance();
-    final emergencyPhone = prefs.getString('emergency_phone') ?? "106";
+    final user = FirebaseAuth.instance.currentUser;
+    String prefix = "guest_";
+    if (user != null) {
+      prefix = "${user.uid}_";
+    } else {
+      final lastEmail = prefs.getString('last_logged_in_email') ?? "guest";
+      prefix = "${lastEmail.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_')}_";
+    }
+    final emergencyPhone = prefs.getString('${prefix}emergency_phone') ?? "106";
 
     // Guardar la alerta de taquicardia/bradicardia crítica en la base de datos
     final alert = CardiacAlert(
@@ -322,7 +331,6 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
       const HistoryTab(),
       SosTab(
         currentHeartRate: _currentHeartRate,
-        hasCompletedMedicalData: _hasCompletedMedicalData,
         onRedirectToProfile: () {
           setState(() {
             _currentIndex = 4; // Cambiar pestaña a Perfil

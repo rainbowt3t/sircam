@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../services/heart_rate_device_service.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class HomeTab extends StatefulWidget {
   final int currentHeartRate;
@@ -29,11 +30,12 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
   Timer? _updateTimer;
   DateTime _lastUpdate = DateTime.now();
   String _userName = "Usuario";
+  bool _isPremium = false;
 
   @override
   void initState() {
     super.initState();
-    _loadUserName();
+    _loadProfileData();
     
     // Controlador de la onda de electrocardiograma
     _ecgController = AnimationController(
@@ -58,14 +60,27 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
     });
   }
 
-  Future<void> _loadUserName() async {
+  // Generar prefijo único por cuenta para evitar mezclar datos
+  Future<String> _getUserPrefix() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      return "${user.uid}_";
+    }
+    final prefs = await SharedPreferences.getInstance();
+    final lastEmail = prefs.getString('last_logged_in_email') ?? "guest";
+    return "${lastEmail.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_')}_";
+  }
+
+  Future<void> _loadProfileData() async {
     try {
+      final prefix = await _getUserPrefix();
       final prefs = await SharedPreferences.getInstance();
       setState(() {
-        _userName = prefs.getString('user_name') ?? "Usuario";
+        _userName = prefs.getString('${prefix}user_name') ?? "Usuario";
+        _isPremium = prefs.getBool('${prefix}user_is_premium') ?? false;
       });
     } catch (e) {
-      debugPrint("Error loading user name in HomeTab: $e");
+      debugPrint("Error loading profile data in HomeTab: $e");
     }
   }
 
@@ -497,7 +512,111 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
               ),
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 25),
+
+          // SECCIÓN PREMIUM DADA A NUESTRO CRITERIO
+          if (_isPremium) ...[
+            // 1. Radar GPS Live para emergencias
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Colors.teal[800]!, Colors.teal[950]!],
+                ),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.tealAccent.withOpacity(0.3)),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.radar_rounded, color: Colors.tealAccent, size: 36),
+                  SizedBox(width: 15),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "COMPARTIENDO GPS EN VIVO",
+                          style: TextStyle(color: Colors.tealAccent, fontWeight: FontWeight.bold, fontSize: 11, letterSpacing: 1.1),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          "Tu ubicación se está transmitiendo en tiempo real y de forma segura al centro médico SAMU 106.",
+                          style: TextStyle(color: Colors.white, fontSize: 13, height: 1.3),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // 2. Asistente médico IA
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1E1E1E),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.amber.withOpacity(0.3)),
+              ),
+              child: const Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.assistant_outlined, color: Colors.amber, size: 28),
+                  SizedBox(width: 15),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "ASISTENTE MÉDICO IA SIRCAM",
+                          style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold, fontSize: 11, letterSpacing: 1.1),
+                        ),
+                        SizedBox(height: 6),
+                        Text(
+                          "Consejo de hoy: Evita realizar esfuerzos físicos de alto impacto. Tu pulso promedio en reposo ha subido ligeramente hoy.",
+                          style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.3),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ] else ...[
+            // Banner de bloqueo / Promoción de versión Premium
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1A1A1A),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.grey[850]!),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.lock_outline_rounded, color: Colors.amber[300], size: 28),
+                  const SizedBox(width: 15),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "SIRCAM PREMIUM DESACTIVADO",
+                          style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold, fontSize: 10, letterSpacing: 1.1),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          "Desbloquea el rastreador de GPS live, reportes médicos descargables y la IA de recomendaciones cardíacas.",
+                          style: TextStyle(color: Colors.grey, fontSize: 12, height: 1.3),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          const SizedBox(height: 25),
         ],
       ),
     );

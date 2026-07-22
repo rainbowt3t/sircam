@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'workout_screen.dart';
 import 'onboarding_wizard_screen.dart';
 import '../services/firebase_service.dart';
@@ -112,6 +113,55 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
+  // Generar el prefijo de almacenamiento aislado
+  String _generatePrefix(String email, String? uid) {
+    if (uid != null && uid.isNotEmpty) {
+      return "${uid}_";
+    }
+    return "${email.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_')}_";
+  }
+
+  // Pre-configurar datos por defecto para cuentas de prueba (Gratuita y Premium)
+  Future<void> _prepopulateAccountData(String email, String prefix, bool isPremium) async {
+    final prefs = await SharedPreferences.getInstance();
+    
+    // Guardar si es premium
+    await prefs.setBool('${prefix}user_is_premium', isPremium);
+
+    // Verificar si ya tiene datos configurados para no sobreescribir
+    if (prefs.getString('${prefix}user_name') == null) {
+      if (isPremium) {
+        await prefs.setString('${prefix}user_name', "Carlos Premium");
+        await prefs.setString('${prefix}user_age', "62");
+        await prefs.setString('${prefix}user_dni', "87654321");
+        await prefs.setString('${prefix}user_weight', "68");
+        await prefs.setBool('${prefix}user_weight_is_kg', true);
+        await prefs.setString('${prefix}user_height', "168");
+        await prefs.setBool('${prefix}user_height_is_cm', true);
+        await prefs.setString('${prefix}user_region', "La Libertad");
+        await prefs.setString('${prefix}user_district', "Trujillo");
+        await prefs.setString('${prefix}emergency_phone', "106");
+        await prefs.setString('${prefix}contact_name', "María Premium (Esposa)");
+        await prefs.setString('${prefix}contact_phone', "999888777");
+        await prefs.setBool('${prefix}onboarding_completed', true);
+      } else if (email == "paciente@sircam.com") {
+        await prefs.setString('${prefix}user_name', "Juan Gratuito");
+        await prefs.setString('${prefix}user_age', "72");
+        await prefs.setString('${prefix}user_dni', "12345678");
+        await prefs.setString('${prefix}user_weight', "75");
+        await prefs.setBool('${prefix}user_weight_is_kg', true);
+        await prefs.setString('${prefix}user_height', "170");
+        await prefs.setBool('${prefix}user_height_is_cm', true);
+        await prefs.setString('${prefix}user_region', "La Libertad");
+        await prefs.setString('${prefix}user_district', "Chepén");
+        await prefs.setString('${prefix}emergency_phone', "106");
+        await prefs.setString('${prefix}contact_name', "Roberto Gratuito (Hijo)");
+        await prefs.setString('${prefix}contact_phone', "987654321");
+        await prefs.setBool('${prefix}onboarding_completed', true);
+      }
+    }
+  }
+
   Future<void> _handleAuth() async {
     if (!_validateFields()) return;
 
@@ -123,27 +173,39 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('last_logged_in_email', email);
+
       if (_isRegisterMode) {
-        // Registro Real en Firebase
+        // Registro en Firebase
         await _firebaseService.signUpWithEmailAndPassword(email, password);
         await _saveCredentials(email, password);
         
-        // Guardar nombre y celular en SharedPreferences localmente
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('user_name', _nameController.text);
-        await prefs.setString('user_phone', _phoneController.text);
+        final user = FirebaseAuth.instance.currentUser;
+        final prefix = _generatePrefix(email, user?.uid);
+        
+        // Guardar nombre y celular aislados
+        await prefs.setString('${prefix}user_name', _nameController.text);
+        await prefs.setString('${prefix}user_phone', _phoneController.text);
+        await prefs.setBool('${prefix}user_is_premium', false); // Registro normal es gratuito
 
         if (mounted) {
-          // Popup simulado de verificación de correo
-          _showVerificationDialog(email, isOffline: false);
+          _showVerificationDialog(email);
         }
       } else {
-        // Login Real en Firebase
+        // Login en Firebase
         await _firebaseService.signInWithEmailAndPassword(email, password);
         await _saveCredentials(email, password);
         
+        final user = FirebaseAuth.instance.currentUser;
+        final prefix = _generatePrefix(email, user?.uid);
+
+        // Pre-cargar si es la cuenta premium predefinida
+        bool isPremium = email == "premium@sircam.com";
+        await _prepopulateAccountData(email, prefix, isPremium);
+        
         if (mounted) {
-          _checkOnboardingAndNavigate();
+          _checkOnboardingAndNavigate(prefix);
         }
       }
     } catch (e) {
@@ -158,30 +220,32 @@ class _LoginScreenState extends State<LoginScreen> {
         errorMsg = "El usuario no existe. Por favor regístrese.";
       }
 
-      // Modo local/offline en caso de que Firebase Auth no esté habilitado en la consola
+      // Modo local/offline en caso de Firebase desconectado
       if (e.toString().contains("no Firebase App") || 
           e.toString().contains("core/no-app") ||
           e.toString().contains("CONFIGURATION_NOT_FOUND")) {
         
-        _showSnackBar(
-          e.toString().contains("CONFIGURATION_NOT_FOUND")
-              ? "⚠️ Configurando credenciales de forma local (Firebase offline)."
-              : "Aviso: Ingresando en Modo Local seguro.",
-          Colors.amber[800]!,
-        );
+        _showSnackBar("Aviso: Ingresando en Modo Local seguro.", Colors.amber[850]!);
 
         await _saveCredentials(email, password);
         final prefs = await SharedPreferences.getInstance();
-        if (_isRegisterMode) {
-          await prefs.setString('user_name', _nameController.text);
-          await prefs.setString('user_phone', _phoneController.text);
-        }
+        final prefix = _generatePrefix(email, null);
 
-        if (mounted) {
-          if (_isRegisterMode) {
-            _showVerificationDialog(email, isOffline: true);
-          } else {
-            _checkOnboardingAndNavigate();
+        if (_isRegisterMode) {
+          await prefs.setString('${prefix}user_name', _nameController.text);
+          await prefs.setString('${prefix}user_phone', _phoneController.text);
+          await prefs.setBool('${prefix}user_is_premium', false);
+          
+          if (mounted) {
+            _showVerificationDialog(email);
+          }
+        } else {
+          // Pre-cargar datos si es paciente o premium en modo offline
+          bool isPremium = email == "premium@sircam.com";
+          await _prepopulateAccountData(email, prefix, isPremium);
+
+          if (mounted) {
+            _checkOnboardingAndNavigate(prefix);
           }
         }
       } else {
@@ -196,10 +260,10 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  // Comprobar si completó el onboarding antes de ir a WorkoutScreen
-  Future<void> _checkOnboardingAndNavigate() async {
+  // Comprobar si completó el onboarding específico de esta cuenta
+  Future<void> _checkOnboardingAndNavigate(String prefix) async {
     final prefs = await SharedPreferences.getInstance();
-    final onboardingCompleted = prefs.getBool('onboarding_completed') ?? false;
+    final onboardingCompleted = prefs.getBool('${prefix}onboarding_completed') ?? false;
 
     if (mounted) {
       if (onboardingCompleted) {
@@ -214,7 +278,7 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  void _showVerificationDialog(String email, {required bool isOffline}) {
+  void _showVerificationDialog(String email) {
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -236,9 +300,10 @@ class _LoginScreenState extends State<LoginScreen> {
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.greenAccent, foregroundColor: Colors.black),
             child: const Text("OK", style: TextStyle(fontWeight: FontWeight.bold)),
-            onPressed: () {
-              Navigator.of(context).pop(); // Cerrar diálogo
-              _checkOnboardingAndNavigate(); // Ir a Onboarding
+            onPressed: () async {
+              Navigator.of(context).pop();
+              final prefix = _generatePrefix(email, FirebaseAuth.instance.currentUser?.uid);
+              _checkOnboardingAndNavigate(prefix);
             },
           ),
         ],
@@ -262,12 +327,12 @@ class _LoginScreenState extends State<LoginScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Container(
-                      padding: const EdgeInsets.all(10),
+                      padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
                         color: Colors.redAccent.withOpacity(0.15),
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(Icons.favorite, color: Colors.redAccent, size: 36),
+                      child: const Icon(Icons.favorite, color: Colors.redAccent, size: 40),
                     ),
                     const SizedBox(width: 12),
                     const Column(
@@ -275,11 +340,11 @@ class _LoginScreenState extends State<LoginScreen> {
                       children: [
                         Text(
                           "SIRCAM",
-                          style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w900, letterSpacing: 1.2),
+                          style: TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.w900, letterSpacing: 1.2),
                         ),
                         Text(
                           "Respuesta Cardíaca de Emergencia",
-                          style: TextStyle(color: Colors.grey, fontSize: 9),
+                          style: TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.bold),
                         ),
                       ],
                     )
@@ -287,9 +352,9 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 40),
 
-                // Selector de modo premium (Tabs)
+                // Selector de modo premium (Tabs) - Grande y Accesible
                 Container(
-                  height: 55,
+                  height: 60,
                   padding: const EdgeInsets.all(5),
                   decoration: BoxDecoration(
                     color: const Color(0xFF1E1E1E),
@@ -312,7 +377,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               style: TextStyle(
                                 color: !_isRegisterMode ? Colors.white : Colors.grey,
                                 fontWeight: FontWeight.bold,
-                                fontSize: 14,
+                                fontSize: 16,
                               ),
                             ),
                           ),
@@ -332,7 +397,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               style: TextStyle(
                                 color: _isRegisterMode ? Colors.white : Colors.grey,
                                 fontWeight: FontWeight.bold,
-                                fontSize: 14,
+                                fontSize: 16,
                               ),
                             ),
                           ),
@@ -343,7 +408,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 35),
 
-                // Cuerpo de formularios diferenciados
+                // Cuerpo de formularios
                 if (!_isRegisterMode) _buildLoginForm() else _buildRegisterForm(),
               ],
             ),
@@ -353,99 +418,91 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  // FORMULARIO DE INICIO DE SESIÓN
   Widget _buildLoginForm() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const Text(
           "Ingresa tus credenciales",
-          style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+          style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 25),
 
-        // Correo
         _buildTextField("Correo Electrónico", _emailController, Icons.email, TextInputType.emailAddress),
         const SizedBox(height: 20),
 
-        // Contraseña
         _buildPasswordField(),
         const SizedBox(height: 15),
 
-        // Recordar credenciales
         Row(
           children: [
-            Checkbox(
-              value: _rememberMe,
-              activeColor: Colors.blueAccent,
-              checkColor: Colors.white,
-              onChanged: (value) {
-                setState(() {
-                  _rememberMe = value ?? false;
-                });
-              },
+            SizedBox(
+              width: 30,
+              height: 30,
+              child: Checkbox(
+                value: _rememberMe,
+                activeColor: Colors.blueAccent,
+                checkColor: Colors.white,
+                onChanged: (value) {
+                  setState(() {
+                    _rememberMe = value ?? false;
+                  });
+                },
+              ),
             ),
+            const SizedBox(width: 8),
             const Text(
               "Guardar mis credenciales",
-              style: TextStyle(color: Colors.grey, fontSize: 13),
+              style: TextStyle(color: Colors.grey, fontSize: 15, fontWeight: FontWeight.w500),
             ),
           ],
         ),
-        const SizedBox(height: 25),
+        const SizedBox(height: 30),
 
-        // Botón Ingresar
         _buildSubmitButton("INGRESAR"),
       ],
     );
   }
 
-  // FORMULARIO DE REGISTRO
   Widget _buildRegisterForm() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const Text(
           "Crea tu Cuenta Médica",
-          style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+          style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 25),
 
-        // Nombre
         _buildTextField("Nombre y Apellidos", _nameController, Icons.person, TextInputType.name),
         const SizedBox(height: 15),
 
-        // Celular
         _buildTextField("Número de Celular", _phoneController, Icons.phone, TextInputType.phone),
         const SizedBox(height: 15),
 
-        // Correo
         _buildTextField("Correo Electrónico", _emailController, Icons.email, TextInputType.emailAddress),
         const SizedBox(height: 15),
 
-        // Contraseña
         _buildPasswordField(),
-        const SizedBox(height: 25),
-
-        // Botón Registrarse
-        _buildSubmitButton("REGISTRARSE"),
         const SizedBox(height: 30),
 
-        // Separador social
+        _buildSubmitButton("REGISTRARSE"),
+        const SizedBox(height: 35),
+
         const Row(
           children: [
-            Expanded(child: Divider(color: Color(0xFF1E1E1E), thickness: 1.5)),
+            Expanded(child: Divider(color: Color(0xFF1E1E1E), thickness: 2)),
             Padding(
               padding: EdgeInsets.symmetric(horizontal: 16.0),
-              child: Text("O REGÍSTRATE CON", style: TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.bold)),
+              child: Text("O REGÍSTRATE CON", style: TextStyle(color: Colors.grey, fontSize: 11, fontWeight: FontWeight.bold)),
             ),
-            Expanded(child: Divider(color: Color(0xFF1E1E1E), thickness: 1.5)),
+            Expanded(child: Divider(color: Color(0xFF1E1E1E), thickness: 2)),
           ],
         ),
         const SizedBox(height: 20),
 
-        // Botones sociales simulados
         Row(
           children: [
             Expanded(
@@ -471,26 +528,25 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  // WIDGETS DE ENTRADA REUTILIZABLES
-
   Widget _buildTextField(String label, TextEditingController controller, IconData icon, TextInputType type) {
     return TextField(
       controller: controller,
       keyboardType: type,
-      style: const TextStyle(color: Colors.white),
+      style: const TextStyle(color: Colors.white, fontSize: 16),
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: TextStyle(color: Colors.grey[500]),
+        labelStyle: TextStyle(color: Colors.grey[400], fontSize: 15),
         filled: true,
         fillColor: const Color(0xFF1E1E1E),
-        prefixIcon: Icon(icon, color: Colors.blueAccent),
+        prefixIcon: Icon(icon, color: Colors.blueAccent, size: 24),
+        contentPadding: const EdgeInsets.symmetric(vertical: 18),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(15),
           borderSide: BorderSide(color: Colors.grey[850]!),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(15),
-          borderSide: const BorderSide(color: Colors.blueAccent),
+          borderSide: const BorderSide(color: Colors.blueAccent, width: 2),
         ),
       ),
     );
@@ -500,13 +556,14 @@ class _LoginScreenState extends State<LoginScreen> {
     return TextField(
       controller: _passwordController,
       obscureText: _obscurePassword,
-      style: const TextStyle(color: Colors.white),
+      style: const TextStyle(color: Colors.white, fontSize: 16),
       decoration: InputDecoration(
         labelText: "Contraseña",
-        labelStyle: TextStyle(color: Colors.grey[500]),
+        labelStyle: TextStyle(color: Colors.grey[400], fontSize: 15),
         filled: true,
         fillColor: const Color(0xFF1E1E1E),
-        prefixIcon: const Icon(Icons.lock, color: Colors.blueAccent),
+        prefixIcon: const Icon(Icons.lock, color: Colors.blueAccent, size: 24),
+        contentPadding: const EdgeInsets.symmetric(vertical: 18),
         suffixIcon: IconButton(
           icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility, color: Colors.grey[500]),
           onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
@@ -517,7 +574,7 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(15),
-          borderSide: const BorderSide(color: Colors.blueAccent),
+          borderSide: const BorderSide(color: Colors.blueAccent, width: 2),
         ),
       ),
     );
@@ -525,7 +582,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Widget _buildSubmitButton(String label) {
     return SizedBox(
-      height: 55,
+      height: 60,
       child: ElevatedButton(
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.blueAccent,
@@ -536,7 +593,7 @@ class _LoginScreenState extends State<LoginScreen> {
             ? const CircularProgressIndicator(color: Colors.white)
             : Text(
                 label,
-                style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold, letterSpacing: 1.2),
+                style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 1.2),
               ),
       ),
     );
@@ -545,13 +602,13 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget _buildSocialButton(String label, IconData icon, Color color, VoidCallback onTap) {
     return OutlinedButton.icon(
       style: OutlinedButton.styleFrom(
-        padding: const EdgeInsets.symmetric(vertical: 14),
+        padding: const EdgeInsets.symmetric(vertical: 16),
         side: BorderSide(color: Colors.grey[850]!),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
       onPressed: onTap,
-      icon: Icon(icon, color: color, size: 24),
-      label: Text(label, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
+      icon: Icon(icon, color: color, size: 28),
+      label: Text(label, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
     );
   }
 }

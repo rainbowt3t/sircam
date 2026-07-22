@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'login_screen.dart';
 
 class ProfileTab extends StatefulWidget {
@@ -15,15 +16,15 @@ class _ProfileTabState extends State<ProfileTab> {
   bool _isPremium = false;
 
   // Datos de usuario principales
-  String _userName = "Juan Pérez";
-  String _userAge = "72";
-  String _userDni = "12345678";
-  String _userWeight = "70";
+  String _userName = "Usuario";
+  String _userAge = "--";
+  String _userDni = "--------";
+  String _userWeight = "--";
   bool _weightIsKg = true;
-  String _userHeight = "170";
+  String _userHeight = "--";
   bool _heightIsCm = true;
-  String _userRegion = "La Libertad";
-  String _userDistrict = "Chepén";
+  String _userRegion = "Desconocida";
+  String _userDistrict = "Desconocido";
   String _emergencyPhone = "106";
 
   // Datos médicos editables
@@ -49,30 +50,43 @@ class _ProfileTabState extends State<ProfileTab> {
     _loadProfileData();
   }
 
-  // Cargar datos guardados
+  // Generar prefijo único por cuenta para evitar mezclar datos
+  Future<String> _getUserPrefix() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      return "${user.uid}_";
+    }
+    final prefs = await SharedPreferences.getInstance();
+    final lastEmail = prefs.getString('last_logged_in_email') ?? "guest";
+    return "${lastEmail.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_')}_";
+  }
+
+  // Cargar datos guardados específicos del usuario
   Future<void> _loadProfileData() async {
     try {
+      final prefix = await _getUserPrefix();
       final prefs = await SharedPreferences.getInstance();
       setState(() {
-        _userName = prefs.getString('user_name') ?? "Juan Pérez";
-        _userAge = prefs.getString('user_age') ?? "72";
-        _userDni = prefs.getString('user_dni') ?? "12345678";
-        _userWeight = prefs.getString('user_weight') ?? "70";
-        _weightIsKg = prefs.getBool('user_weight_is_kg') ?? true;
-        _userHeight = prefs.getString('user_height') ?? "170";
-        _heightIsCm = prefs.getBool('user_height_is_cm') ?? true;
-        _userRegion = prefs.getString('user_region') ?? "La Libertad";
-        _userDistrict = prefs.getString('user_district') ?? "Chepén";
-        _emergencyPhone = prefs.getString('emergency_phone') ?? "106";
+        _isPremium = prefs.getBool('${prefix}user_is_premium') ?? false;
+        _userName = prefs.getString('${prefix}user_name') ?? "Paciente Ejemplo";
+        _userAge = prefs.getString('${prefix}user_age') ?? "72";
+        _userDni = prefs.getString('${prefix}user_dni') ?? "12345678";
+        _userWeight = prefs.getString('${prefix}user_weight') ?? "75";
+        _weightIsKg = prefs.getBool('${prefix}user_weight_is_kg') ?? true;
+        _userHeight = prefs.getString('${prefix}user_height') ?? "170";
+        _heightIsCm = prefs.getBool('${prefix}user_height_is_cm') ?? true;
+        _userRegion = prefs.getString('${prefix}user_region') ?? "La Libertad";
+        _userDistrict = prefs.getString('${prefix}user_district') ?? "Chepén";
+        _emergencyPhone = prefs.getString('${prefix}emergency_phone') ?? "106";
 
-        _bloodType = prefs.getString('user_blood_type') ?? "";
-        _diseases = prefs.getString('user_diseases') ?? "";
-        _allergies = prefs.getString('user_allergies') ?? "";
-        _medications = prefs.getString('user_medications') ?? "";
+        _bloodType = prefs.getString('${prefix}user_blood_type') ?? "";
+        _diseases = prefs.getString('${prefix}user_diseases') ?? "";
+        _allergies = prefs.getString('${prefix}user_allergies') ?? "";
+        _medications = prefs.getString('${prefix}user_medications') ?? "";
 
         // Si hay contacto principal guardado, añadirlo al inicio
-        final cName = prefs.getString('contact_name');
-        final cPhone = prefs.getString('contact_phone');
+        final cName = prefs.getString('${prefix}contact_name');
+        final cPhone = prefs.getString('${prefix}contact_phone');
         if (cName != null && cPhone != null) {
           bool exists = _contacts.any((element) => element["cel"] == cPhone);
           if (!exists) {
@@ -85,25 +99,27 @@ class _ProfileTabState extends State<ProfileTab> {
     }
   }
 
-  // Guardar datos modificados
+  // Guardar datos modificados específicos de este usuario
   Future<void> _saveProfileData() async {
     try {
+      final prefix = await _getUserPrefix();
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('user_name', _userName);
-      await prefs.setString('user_age', _userAge);
-      await prefs.setString('user_dni', _userDni);
-      await prefs.setString('user_weight', _userWeight);
-      await prefs.setBool('user_weight_is_kg', _weightIsKg);
-      await prefs.setString('user_height', _userHeight);
-      await prefs.setBool('user_height_is_cm', _heightIsCm);
-      await prefs.setString('user_region', _userRegion);
-      await prefs.setString('user_district', _userDistrict);
-      await prefs.setString('emergency_phone', _emergencyPhone);
+      await prefs.setBool('${prefix}user_is_premium', _isPremium);
+      await prefs.setString('${prefix}user_name', _userName);
+      await prefs.setString('${prefix}user_age', _userAge);
+      await prefs.setString('${prefix}user_dni', _userDni);
+      await prefs.setString('${prefix}user_weight', _userWeight);
+      await prefs.setBool('${prefix}user_weight_is_kg', _weightIsKg);
+      await prefs.setString('${prefix}user_height', _userHeight);
+      await prefs.setBool('${prefix}user_height_is_cm', _heightIsCm);
+      await prefs.setString('${prefix}user_region', _userRegion);
+      await prefs.setString('${prefix}user_district', _userDistrict);
+      await prefs.setString('${prefix}emergency_phone', _emergencyPhone);
 
-      await prefs.setString('user_blood_type', _bloodType);
-      await prefs.setString('user_diseases', _diseases);
-      await prefs.setString('user_allergies', _allergies);
-      await prefs.setString('user_medications', _medications);
+      await prefs.setString('${prefix}user_blood_type', _bloodType);
+      await prefs.setString('${prefix}user_diseases', _diseases);
+      await prefs.setString('${prefix}user_allergies', _allergies);
+      await prefs.setString('${prefix}user_medications', _medications);
     } catch (e) {
       debugPrint("Error al guardar perfil: $e");
     }
@@ -154,12 +170,11 @@ class _ProfileTabState extends State<ProfileTab> {
             ),
             const SizedBox(height: 12),
             const Text(
-              "Obtén acceso ilimitado a alertas autónomas inteligentes 24/7 y enlace telefónico automático prioritario con los servicios médicos del SAMU por solo S/. 19.90 al mes.",
+              "Acceso ilimitado a alertas de emergencia automatizadas al SAMU, reportes PDF de historial clínico y personalización de rangos cardíacos por S/. 19.90 al mes.",
               style: TextStyle(color: Colors.grey, fontSize: 13, height: 1.4),
             ),
             const SizedBox(height: 20),
             
-            // Campos de tarjeta simulados
             TextField(
               keyboardType: TextInputType.number,
               style: const TextStyle(color: Colors.white),
@@ -172,10 +187,6 @@ class _ProfileTabState extends State<ProfileTab> {
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide: BorderSide.none,
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Colors.greenAccent),
                 ),
               ),
             ),
@@ -220,7 +231,6 @@ class _ProfileTabState extends State<ProfileTab> {
             ),
             const SizedBox(height: 25),
 
-            // Botón de pago en Soles
             SizedBox(
               width: double.infinity,
               height: 55,
@@ -232,8 +242,12 @@ class _ProfileTabState extends State<ProfileTab> {
                     borderRadius: BorderRadius.circular(15),
                   ),
                 ),
-                onPressed: () {
+                onPressed: () async {
                   Navigator.of(context).pop();
+                  setState(() {
+                    _isPremium = true;
+                  });
+                  await _saveProfileData();
                   _simulatePaymentSuccess();
                 },
                 child: const Text(
@@ -265,7 +279,7 @@ class _ProfileTabState extends State<ProfileTab> {
             ),
             const SizedBox(height: 10),
             const Text(
-              "Ahora eres SIRCAM Premium. El monitoreo proactivo del SAMU está activo en tu cuenta.",
+              "Ahora eres SIRCAM Premium. Se han desbloqueado los reportes PDF, la personalización de límites y el radar live.",
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.grey, fontSize: 13),
             ),
@@ -275,9 +289,6 @@ class _ProfileTabState extends State<ProfileTab> {
               child: const Text("ENTENDIDO", style: TextStyle(color: Colors.white)),
               onPressed: () {
                 Navigator.of(context).pop();
-                setState(() {
-                  _isPremium = true;
-                });
               },
             ),
           ],
@@ -285,14 +296,6 @@ class _ProfileTabState extends State<ProfileTab> {
       ),
     );
   }
-
-  void _handleLogout() {
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (context) => const LoginScreen()),
-    );
-  }
-
-  // --- DIÁLOGOS DE EDICIÓN DE PERFIL ---
 
   void _showEditProfileDialog() {
     final nameController = TextEditingController(text: _userName);
@@ -400,7 +403,6 @@ class _ProfileTabState extends State<ProfileTab> {
               
               await _saveProfileData();
 
-              // Notificar al padre que se ha completado la información médica
               if (_bloodType.isNotEmpty && widget.onMedicalDataCompleted != null) {
                 widget.onMedicalDataCompleted!();
               }
@@ -469,7 +471,6 @@ class _ProfileTabState extends State<ProfileTab> {
                             Text("${c["relacion"]!} • Cel: ${c["cel"]!}", style: TextStyle(color: Colors.grey[500], fontSize: 11)),
                           ],
                         ),
-                        // Botón de llamada real / simulada
                         IconButton(
                           icon: const Icon(Icons.call, color: Colors.greenAccent, size: 20),
                           onPressed: () async {
@@ -531,7 +532,7 @@ class _ProfileTabState extends State<ProfileTab> {
           mainAxisSize: MainAxisSize.min,
           children: [
             _buildDialogField("Nombre Completo", nameCtrl),
-            _buildDialogField("Relación (Ej: Hijo, Esposa)", relationCtrl),
+            _buildDialogField("Relación", relationCtrl),
             _buildDialogField("Número Celular", celCtrl),
           ],
         ),
@@ -552,12 +553,12 @@ class _ProfileTabState extends State<ProfileTab> {
                     "cel": celCtrl.text,
                   });
                 });
-                setState(() {}); // Actualiza la pantalla de perfil externa
+                setState(() {});
                 
-                // Guardar como contacto principal también
+                final prefix = await _getUserPrefix();
                 final prefs = await SharedPreferences.getInstance();
-                await prefs.setString('contact_name', nameCtrl.text);
-                await prefs.setString('contact_phone', celCtrl.text);
+                await prefs.setString('${prefix}contact_name', nameCtrl.text);
+                await prefs.setString('${prefix}contact_phone', celCtrl.text);
 
                 if (context.mounted) {
                   Navigator.of(context).pop();
@@ -619,7 +620,16 @@ class _ProfileTabState extends State<ProfileTab> {
           return AlertDialog(
             backgroundColor: const Color(0xFF1E1E1E),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            title: const Text("Configuración Médica", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            title: Row(
+              children: [
+                const Icon(Icons.settings, color: Colors.white),
+                const SizedBox(width: 8),
+                Text(
+                  _isPremium ? "Configuración Médica" : "Configuración (Bloqueado)", 
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)
+                ),
+              ],
+            ),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -635,30 +645,46 @@ class _ProfileTabState extends State<ProfileTab> {
                 ),
                 const Divider(color: Colors.grey),
                 const SizedBox(height: 8),
-                const Text("Umbrales Cardíacos de Alerta", style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text("Límites Cardíacos de Alerta", style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
+                    if (!_isPremium)
+                      const Text("★ Premium", style: TextStyle(color: Colors.amber, fontSize: 11, fontWeight: FontWeight.bold)),
+                  ],
+                ),
                 const SizedBox(height: 12),
-                Text("Límite Taquicardia: ${_maxAlertBpm.round()} BPM", style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
+                Text("Límite Taquicardia: ${_maxAlertBpm.round()} BPM", style: TextStyle(color: _isPremium ? Colors.redAccent : Colors.grey, fontSize: 12)),
                 Slider(
                   min: 100.0,
                   max: 160.0,
                   value: _maxAlertBpm,
-                  activeColor: Colors.redAccent,
-                  onChanged: (val) {
+                  activeColor: _isPremium ? Colors.redAccent : Colors.grey[700],
+                  onChanged: _isPremium ? (val) {
                     setDialogState(() => _maxAlertBpm = val);
                     setState(() => _maxAlertBpm = val);
-                  },
+                  } : null,
                 ),
-                Text("Límite Bradicardia: ${_minAlertBpm.round()} BPM", style: const TextStyle(color: Colors.amberAccent, fontSize: 12)),
+                Text("Límite Bradicardia: ${_minAlertBpm.round()} BPM", style: TextStyle(color: _isPremium ? Colors.amber : Colors.grey, fontSize: 12)),
                 Slider(
                   min: 35.0,
                   max: 60.0,
                   value: _minAlertBpm,
-                  activeColor: Colors.amber,
-                  onChanged: (val) {
+                  activeColor: _isPremium ? Colors.amber : Colors.grey[700],
+                  onChanged: _isPremium ? (val) {
                     setDialogState(() => _minAlertBpm = val);
                     setState(() => _minAlertBpm = val);
-                  },
+                  } : null,
                 ),
+                if (!_isPremium)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8.0),
+                    child: Text(
+                      "Suscríbete a SIRCAM Premium para personalizar tus límites cardíacos.",
+                      style: TextStyle(color: Colors.amber[200], fontSize: 10, fontStyle: FontStyle.italic),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
               ],
             ),
             actions: [
@@ -673,6 +699,19 @@ class _ProfileTabState extends State<ProfileTab> {
     );
   }
 
+  void _handleLogout() async {
+    try {
+      await FirebaseAuth.instance.signOut();
+    } catch (e) {
+      debugPrint("Error signing out: $e");
+    }
+    if (mounted) {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (context) => const LoginScreen()),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
@@ -680,7 +719,6 @@ class _ProfileTabState extends State<ProfileTab> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Cabecera Perfil
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -696,10 +734,8 @@ class _ProfileTabState extends State<ProfileTab> {
           ),
           const SizedBox(height: 20),
 
-          // Datos de Usuario Cargados Dinámicamente
           Row(
             children: [
-              // Avatar
               Container(
                 width: 75,
                 height: 75,
@@ -737,7 +773,6 @@ class _ProfileTabState extends State<ProfileTab> {
           ),
           const SizedBox(height: 25),
 
-          // Tarjeta de Suscripción Premium
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(20),
@@ -802,7 +837,6 @@ class _ProfileTabState extends State<ProfileTab> {
           ),
           const SizedBox(height: 25),
 
-          // Menu de opciones funcionales
           _buildMenuItem(
             Icons.local_hospital,
             "Información médica",
@@ -824,12 +858,13 @@ class _ProfileTabState extends State<ProfileTab> {
           _buildMenuItem(
             Icons.settings,
             "Configuración",
-            "Notificaciones, límites cardíacos, SAMU $_emergencyPhone",
+            _isPremium 
+              ? "Notificaciones, límites cardíacos personalizables" 
+              : "Límites cardíacos estándar (Suscríbete para editar)",
             _showSettingsDialog,
           ),
           
           const SizedBox(height: 20),
-          // Cerrar sesión
           GestureDetector(
             onTap: _handleLogout,
             child: Container(

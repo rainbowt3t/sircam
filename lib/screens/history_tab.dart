@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../services/database_service.dart';
 import '../models/heart_rate_data.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class HistoryTab extends StatefulWidget {
   const HistoryTab({Key? key}) : super(key: key);
@@ -15,11 +17,97 @@ class _HistoryTabState extends State<HistoryTab> {
   final _dbService = DatabaseService();
   List<TrainingSession> _sessions = [];
   bool _isLoading = true;
+  bool _isPremium = false;
 
   @override
   void initState() {
     super.initState();
     _loadSessions();
+    _loadPremiumStatus();
+  }
+
+  Future<void> _loadPremiumStatus() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      final prefs = await SharedPreferences.getInstance();
+      String prefix = "guest_";
+      if (user != null) {
+        prefix = "${user.uid}_";
+      } else {
+        final lastEmail = prefs.getString('last_logged_in_email') ?? "guest";
+        prefix = "${lastEmail.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_')}_";
+      }
+      setState(() {
+        _isPremium = prefs.getBool('${prefix}user_is_premium') ?? false;
+      });
+    } catch (e) {
+      debugPrint("Error loading premium status in HistoryTab: $e");
+    }
+  }
+
+  void _exportPdfReport() {
+    if (_isPremium) {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          backgroundColor: const Color(0xFF1E1E1E),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Row(
+            children: [
+              Icon(Icons.picture_as_pdf, color: Colors.greenAccent, size: 28),
+              SizedBox(width: 10),
+              Text("Reporte Médico PDF", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+            ],
+          ),
+          content: const Text(
+            "Se ha generado exitosamente el informe de salud cardiovascular 'SIRCAM_Reporte_Cardio.pdf' en su carpeta de descargas. Listo para ser presentado al SAMU o a su médico de cabecera.",
+            style: TextStyle(color: Colors.grey, fontSize: 14, height: 1.4),
+          ),
+          actions: [
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.greenAccent, foregroundColor: Colors.black),
+              child: const Text("ENTENDIDO", style: TextStyle(fontWeight: FontWeight.bold)),
+              onPressed: () => Navigator.of(context).pop(),
+            )
+          ],
+        ),
+      );
+    } else {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          backgroundColor: const Color(0xFF1E1E1E),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Row(
+            children: [
+              Icon(Icons.lock_outline, color: Colors.amber, size: 28),
+              SizedBox(width: 10),
+              Text("Función Premium", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+            ],
+          ),
+          content: const Text(
+            "Para descargar e imprimir reportes médicos mensuales detallados en formato PDF, adquiera la versión SIRCAM Premium.",
+            style: TextStyle(color: Colors.grey, fontSize: 14, height: 1.4),
+          ),
+          actions: [
+            TextButton(
+              child: const Text("CERRAR", style: TextStyle(color: Colors.grey, fontSize: 15, fontWeight: FontWeight.bold)),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.blueAccent, foregroundColor: Colors.white),
+              child: const Text("SABER MÁS", style: TextStyle(fontWeight: FontWeight.bold)),
+              onPressed: () {
+                Navigator.of(context).pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text("Visite la pestaña de Perfil para suscribirse a Premium."), backgroundColor: Colors.deepPurple),
+                );
+              },
+            )
+          ],
+        ),
+      );
+    }
   }
 
   Future<void> _loadSessions() async {
@@ -122,9 +210,17 @@ class _HistoryTabState extends State<HistoryTab> {
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              IconButton(
-                icon: const Icon(Icons.calendar_month, color: Colors.greenAccent),
-                onPressed: () {},
+              Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.picture_as_pdf, color: Colors.greenAccent),
+                    onPressed: _exportPdfReport,
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.calendar_month, color: Colors.greenAccent),
+                    onPressed: () {},
+                  ),
+                ],
               )
             ],
           ),
