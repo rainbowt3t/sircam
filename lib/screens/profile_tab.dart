@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'login_screen.dart';
 
 class ProfileTab extends StatefulWidget {
@@ -13,7 +14,19 @@ class ProfileTab extends StatefulWidget {
 class _ProfileTabState extends State<ProfileTab> {
   bool _isPremium = false;
 
-  // Datos médicos inicialmente vacíos para simular un usuario nuevo
+  // Datos de usuario principales
+  String _userName = "Juan Pérez";
+  String _userAge = "72";
+  String _userDni = "12345678";
+  String _userWeight = "70";
+  bool _weightIsKg = true;
+  String _userHeight = "170";
+  bool _heightIsCm = true;
+  String _userRegion = "La Libertad";
+  String _userDistrict = "Chepén";
+  String _emergencyPhone = "106";
+
+  // Datos médicos editables
   String _bloodType = "";
   String _diseases = "";
   String _allergies = "";
@@ -29,6 +42,72 @@ class _ProfileTabState extends State<ProfileTab> {
   bool _autoAlertSamu = true;
   double _maxAlertBpm = 125.0;
   double _minAlertBpm = 45.0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfileData();
+  }
+
+  // Cargar datos guardados
+  Future<void> _loadProfileData() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      setState(() {
+        _userName = prefs.getString('user_name') ?? "Juan Pérez";
+        _userAge = prefs.getString('user_age') ?? "72";
+        _userDni = prefs.getString('user_dni') ?? "12345678";
+        _userWeight = prefs.getString('user_weight') ?? "70";
+        _weightIsKg = prefs.getBool('user_weight_is_kg') ?? true;
+        _userHeight = prefs.getString('user_height') ?? "170";
+        _heightIsCm = prefs.getBool('user_height_is_cm') ?? true;
+        _userRegion = prefs.getString('user_region') ?? "La Libertad";
+        _userDistrict = prefs.getString('user_district') ?? "Chepén";
+        _emergencyPhone = prefs.getString('emergency_phone') ?? "106";
+
+        _bloodType = prefs.getString('user_blood_type') ?? "";
+        _diseases = prefs.getString('user_diseases') ?? "";
+        _allergies = prefs.getString('user_allergies') ?? "";
+        _medications = prefs.getString('user_medications') ?? "";
+
+        // Si hay contacto principal guardado, añadirlo al inicio
+        final cName = prefs.getString('contact_name');
+        final cPhone = prefs.getString('contact_phone');
+        if (cName != null && cPhone != null) {
+          bool exists = _contacts.any((element) => element["cel"] == cPhone);
+          if (!exists) {
+            _contacts.insert(0, {"nombre": cName, "relacion": "Contacto Principal", "cel": cPhone});
+          }
+        }
+      });
+    } catch (e) {
+      debugPrint("Error al cargar perfil: $e");
+    }
+  }
+
+  // Guardar datos modificados
+  Future<void> _saveProfileData() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('user_name', _userName);
+      await prefs.setString('user_age', _userAge);
+      await prefs.setString('user_dni', _userDni);
+      await prefs.setString('user_weight', _userWeight);
+      await prefs.setBool('user_weight_is_kg', _weightIsKg);
+      await prefs.setString('user_height', _userHeight);
+      await prefs.setBool('user_height_is_cm', _heightIsCm);
+      await prefs.setString('user_region', _userRegion);
+      await prefs.setString('user_district', _userDistrict);
+      await prefs.setString('emergency_phone', _emergencyPhone);
+
+      await prefs.setString('user_blood_type', _bloodType);
+      await prefs.setString('user_diseases', _diseases);
+      await prefs.setString('user_allergies', _allergies);
+      await prefs.setString('user_medications', _medications);
+    } catch (e) {
+      debugPrint("Error al guardar perfil: $e");
+    }
+  }
 
   void _showSubscriptionBottomSheet() {
     showModalBottomSheet(
@@ -213,7 +292,72 @@ class _ProfileTabState extends State<ProfileTab> {
     );
   }
 
-  // --- DIÁLOGOS DE OPCIONES FUNCIONALES ---
+  // --- DIÁLOGOS DE EDICIÓN DE PERFIL ---
+
+  void _showEditProfileDialog() {
+    final nameController = TextEditingController(text: _userName);
+    final ageController = TextEditingController(text: _userAge);
+    final dniController = TextEditingController(text: _userDni);
+    final weightController = TextEditingController(text: _userWeight);
+    final heightController = TextEditingController(text: _userHeight);
+    final regionController = TextEditingController(text: _userRegion);
+    final districtController = TextEditingController(text: _userDistrict);
+    final emergencyPhoneController = TextEditingController(text: _emergencyPhone);
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E1E),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text("Editar Datos de Perfil", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildDialogField("Nombre Completo", nameController),
+              _buildDialogField("Edad (Años)", ageController),
+              _buildDialogField("DNI / Identificación", dniController),
+              _buildDialogField("Peso", weightController),
+              _buildDialogField("Altura", heightController),
+              _buildDialogField("Región", regionController),
+              _buildDialogField("Distrito / Ciudad", districtController),
+              _buildDialogField("Teléfono Emergencia (SAMU)", emergencyPhoneController),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            child: const Text("CANCELAR", style: TextStyle(color: Colors.grey)),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.greenAccent, foregroundColor: Colors.black),
+            child: const Text("GUARDAR", style: TextStyle(fontWeight: FontWeight.bold)),
+            onPressed: () async {
+              setState(() {
+                _userName = nameController.text;
+                _userAge = ageController.text;
+                _userDni = dniController.text;
+                _userWeight = weightController.text;
+                _userHeight = heightController.text;
+                _userRegion = regionController.text;
+                _userDistrict = districtController.text;
+                _emergencyPhone = emergencyPhoneController.text;
+              });
+
+              await _saveProfileData();
+              if (mounted) {
+                Navigator.of(context).pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text("✅ Perfil actualizado correctamente."), backgroundColor: Colors.green),
+                );
+              }
+            },
+          ),
+        ],
+      ),
+    );
+  }
 
   void _showMedicalInfoDialog() {
     final bloodController = TextEditingController(text: _bloodType);
@@ -246,7 +390,7 @@ class _ProfileTabState extends State<ProfileTab> {
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.greenAccent, foregroundColor: Colors.black),
             child: const Text("GUARDAR", style: TextStyle(fontWeight: FontWeight.bold)),
-            onPressed: () {
+            onPressed: () async {
               setState(() {
                 _bloodType = bloodController.text;
                 _diseases = diseasesController.text;
@@ -254,15 +398,19 @@ class _ProfileTabState extends State<ProfileTab> {
                 _medications = medsController.text;
               });
               
+              await _saveProfileData();
+
               // Notificar al padre que se ha completado la información médica
               if (_bloodType.isNotEmpty && widget.onMedicalDataCompleted != null) {
                 widget.onMedicalDataCompleted!();
               }
 
-              Navigator.of(context).pop();
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text("✅ Información médica actualizada."), backgroundColor: Colors.green),
-              );
+              if (mounted) {
+                Navigator.of(context).pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text("✅ Información médica actualizada."), backgroundColor: Colors.green),
+                );
+              }
             },
           ),
         ],
@@ -395,7 +543,7 @@ class _ProfileTabState extends State<ProfileTab> {
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.greenAccent, foregroundColor: Colors.black),
             child: const Text("AÑADIR"),
-            onPressed: () {
+            onPressed: () async {
               if (nameCtrl.text.isNotEmpty && celCtrl.text.isNotEmpty) {
                 setParentState(() {
                   _contacts.add({
@@ -405,7 +553,15 @@ class _ProfileTabState extends State<ProfileTab> {
                   });
                 });
                 setState(() {}); // Actualiza la pantalla de perfil externa
-                Navigator.of(context).pop();
+                
+                // Guardar como contacto principal también
+                final prefs = await SharedPreferences.getInstance();
+                await prefs.setString('contact_name', nameCtrl.text);
+                await prefs.setString('contact_phone', celCtrl.text);
+
+                if (context.mounted) {
+                  Navigator.of(context).pop();
+                }
               }
             },
           ),
@@ -534,13 +690,13 @@ class _ProfileTabState extends State<ProfileTab> {
               ),
               IconButton(
                 icon: const Icon(Icons.edit, color: Colors.greenAccent),
-                onPressed: () {},
+                onPressed: _showEditProfileDialog,
               )
             ],
           ),
           const SizedBox(height: 20),
 
-          // Datos de Juan Pérez
+          // Datos de Usuario Cargados Dinámicamente
           Row(
             children: [
               // Avatar
@@ -555,24 +711,27 @@ class _ProfileTabState extends State<ProfileTab> {
                 child: const Icon(Icons.person, color: Colors.white, size: 45),
               ),
               const SizedBox(width: 20),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    "Juan Pérez",
-                    style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    "72 Años",
-                    style: TextStyle(color: Colors.grey[500], fontSize: 13),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    "DNI: 12345678",
-                    style: TextStyle(color: Colors.grey[500], fontSize: 12),
-                  ),
-                ],
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _userName,
+                      style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      "$_userAge Años • $_userWeight ${_weightIsKg ? 'Kg' : 'Lbs'}",
+                      style: TextStyle(color: Colors.grey[500], fontSize: 13),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      "📍 $_userDistrict, $_userRegion • DNI: $_userDni",
+                      style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
@@ -617,7 +776,7 @@ class _ProfileTabState extends State<ProfileTab> {
                 Text(
                   _isPremium 
                     ? "Tienes acceso prioritario e inteligente al SAMU y alertas en tiempo real." 
-                    : "Acceso Premium para alertas cardíacas proactivas al SAMU 106.",
+                    : "Acceso Premium para alertas cardíacas proactivas al SAMU $_emergencyPhone.",
                   style: const TextStyle(color: Colors.white, fontSize: 13, height: 1.3),
                 ),
                 const SizedBox(height: 15),
@@ -665,7 +824,7 @@ class _ProfileTabState extends State<ProfileTab> {
           _buildMenuItem(
             Icons.settings,
             "Configuración",
-            "Notificaciones, límites cardíacos",
+            "Notificaciones, límites cardíacos, SAMU $_emergencyPhone",
             _showSettingsDialog,
           ),
           
@@ -708,29 +867,34 @@ class _ProfileTabState extends State<ProfileTab> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Row(
-              children: [
-                Icon(icon, color: Colors.grey, size: 24),
-                const SizedBox(width: 16),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+            Expanded(
+              child: Row(
+                children: [
+                  Icon(icon, color: Colors.grey, size: 24),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          subtitle,
+                          style: TextStyle(
+                            color: isPending ? Colors.redAccent : Colors.grey[500],
+                            fontSize: 12,
+                            fontWeight: isPending ? FontWeight.bold : FontWeight.normal,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle,
-                      style: TextStyle(
-                        color: isPending ? Colors.redAccent : Colors.grey[500],
-                        fontSize: 12,
-                        fontWeight: isPending ? FontWeight.bold : FontWeight.normal,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+                  ),
+                ],
+              ),
             ),
             const Icon(Icons.chevron_right, color: Colors.grey),
           ],

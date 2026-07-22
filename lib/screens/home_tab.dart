@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../services/heart_rate_device_service.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class HomeTab extends StatefulWidget {
   final int currentHeartRate;
@@ -27,10 +28,12 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
   String _lastUpdateString = "Hace 10 seg";
   Timer? _updateTimer;
   DateTime _lastUpdate = DateTime.now();
+  String _userName = "Usuario";
 
   @override
   void initState() {
     super.initState();
+    _loadUserName();
     
     // Controlador de la onda de electrocardiograma
     _ecgController = AnimationController(
@@ -53,6 +56,17 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
         }
       });
     });
+  }
+
+  Future<void> _loadUserName() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      setState(() {
+        _userName = prefs.getString('user_name') ?? "Usuario";
+      });
+    } catch (e) {
+      debugPrint("Error loading user name in HomeTab: $e");
+    }
   }
 
   @override
@@ -112,9 +126,9 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    "Hola, Juan Pérez",
-                    style: TextStyle(
+                  Text(
+                    "Hola, $_userName",
+                    style: const TextStyle(
                       color: Colors.white,
                       fontSize: 24,
                       fontWeight: FontWeight.bold,

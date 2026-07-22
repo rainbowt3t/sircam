@@ -8,6 +8,8 @@ import 'history_tab.dart';
 import 'sos_tab.dart';
 import 'alerts_tab.dart';
 import 'profile_tab.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class WorkoutScreen extends StatefulWidget {
   const WorkoutScreen({Key? key}) : super(key: key);
@@ -263,17 +265,20 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
     );
   }
 
-  /// Lanza el SOS Autónomo: Guarda la alerta crítica en Isar y redirige al Tab de SOS
+  /// Lanza el SOS Autónomo: Guarda la alerta crítica en Isar, realiza llamada de emergencia automática y redirige al Tab de SOS
   Future<void> _triggerAutonomousEmergency() async {
     setState(() {
       _isShowingAnomalyAlert = false;
       _currentIndex = 2; // Redirigir a la pestaña SOS
     });
 
+    final prefs = await SharedPreferences.getInstance();
+    final emergencyPhone = prefs.getString('emergency_phone') ?? "106";
+
     // Guardar la alerta de taquicardia/bradicardia crítica en la base de datos
     final alert = CardiacAlert(
-      title: _anomalyBpm >= 120 ? "Taquicardia severa detectada" : "Bradicardia severa detectada",
-      description: "Frecuencia crítica: $_anomalyBpm lpm registrada automáticamente ante falta de respuesta.",
+      title: _anomalyBpm >= 125 ? "Taquicardia severa detectada" : "Bradicardia severa detectada",
+      description: "Frecuencia crítica: $_anomalyBpm lpm registrada automáticamente ante falta de respuesta. Llamada automática a SAMU ($emergencyPhone) iniciada.",
       timestamp: DateTime.now(),
       heartRate: _anomalyBpm,
       type: "critica",
@@ -281,12 +286,24 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
 
     await _dbService.saveAlert(alert);
 
+    // Realizar llamada automática
+    final Uri telUri = Uri.parse("tel:$emergencyPhone");
+    try {
+      if (await canLaunchUrl(telUri)) {
+        await launchUrl(telUri);
+      } else {
+        throw "No se puede abrir la aplicación de llamadas.";
+      }
+    } catch (e) {
+      debugPrint("Error al lanzar llamada de emergencia automática: $e");
+    }
+
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("🚨 SOS Autónomo Activado. Alerta médica enviada al SAMU."),
+        SnackBar(
+          content: Text("🚨 SOS Autónomo Activado. Llamando automáticamente al $emergencyPhone (SAMU)."),
           backgroundColor: Colors.redAccent,
-          duration: Duration(seconds: 5),
+          duration: const Duration(seconds: 5),
         ),
       );
     }
