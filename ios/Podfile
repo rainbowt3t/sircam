@@ -1,6 +1,9 @@
 # Uncomment this line to define a global platform for your project
 platform :ios, '13.0'
 
+# Importar las utilidades de Flutter para CocoaPods
+require_relative 'Flutter/generated_podhelper.rb'
+
 # CocoaPods analytics sends usage stats.
 # cocoapods_analytics
 
