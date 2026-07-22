@@ -187,24 +187,39 @@ class _LoginScreenState extends State<LoginScreen> {
         // Guardar nombre y celular aislados
         await prefs.setString('${prefix}user_name', _nameController.text);
         await prefs.setString('${prefix}user_phone', _phoneController.text);
-        await prefs.setBool('${prefix}user_is_premium', false); // Registro normal es gratuito
+        
+        // Si se registra con el correo premium, marcar como premium
+        bool isPremium = email == "premium@sircam.com";
+        await prefs.setBool('${prefix}user_is_premium', isPremium);
 
         if (mounted) {
           _showVerificationDialog(email);
         }
       } else {
-        // Login en Firebase
-        await _firebaseService.signInWithEmailAndPassword(email, password);
+        // Login en Firebase con bypass de prueba offline
+        bool localBypass = false;
+        try {
+          await _firebaseService.signInWithEmailAndPassword(email, password);
+        } catch (authError) {
+          if ((email == "paciente@sircam.com" || email == "premium@sircam.com") && password == "sircam2026") {
+            localBypass = true;
+          } else {
+            rethrow;
+          }
+        }
         await _saveCredentials(email, password);
         
-        final user = FirebaseAuth.instance.currentUser;
+        final user = localBypass ? null : FirebaseAuth.instance.currentUser;
         final prefix = _generatePrefix(email, user?.uid);
 
-        // Pre-cargar si es la cuenta premium predefinida
+        // Pre-cargar si es la cuenta premium predefinida o paciente
         bool isPremium = email == "premium@sircam.com";
         await _prepopulateAccountData(email, prefix, isPremium);
         
         if (mounted) {
+          if (localBypass) {
+            _showSnackBar("Acceso de prueba activado (Modo local seguro).", Colors.amber[850]!);
+          }
           _checkOnboardingAndNavigate(prefix);
         }
       }
